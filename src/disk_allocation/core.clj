@@ -6,6 +6,7 @@
 
 (def one-r5 (Case. 10 0.00M "r5"))
 (def one-xl (Case. 14 132.99M "xl"))
+(def one-phanteks-itx (Case. 5 89.99M "Phanteks ITX"))
 
 (def one-tb-to-tib 0.909495M)
 (def lan-server-target-size (* 9.128M 2.5M one-tb-to-tib))
@@ -81,6 +82,22 @@
 (defn- make-possibilities [number r]
   (map #(repeat % r) (range 0 number)))
 
+(defn- valid-configurations [percent-key drive-arrays case target-size]
+  (let [block-range (inc (int (Math/floor (/ (:drives case) (:number-drives (first drive-arrays))))))
+        all-drive-array-configurations (map flatten (apply combo/cartesian-product
+                              (map #(make-possibilities block-range %) drive-arrays)))
+        configurations-with-right-number-of-drive-arrays (filter #(> block-range (count %))
+                                                                 all-drive-array-configurations)
+        configurations-with-right-target-size (filter #(< target-size (reduce (fn [r v] (+ r (percent-key v))) 0 %))
+                                                      configurations-with-right-number-of-drive-arrays)]
+    (map (fn [v] {:valid-drive-array-configuration v :case case}) configurations-with-right-target-size)))
+
+(defn- generate-all-valid-configurations [[das cs sizes]]
+  (let [the-valid-configurations (map (fn [da c size]
+                                        (valid-configurations :tib-50-percent da c size))
+                                      das cs sizes)]
+    (apply combo/cartesian-product the-valid-configurations)))
+
 (defn- drive-size [drive-array]
   (:drive-size (:drive drive-array)))
 
@@ -114,47 +131,39 @@
        (+ (* (:drive-cost four-tb-drive) (min (accumulate-from-fccs :count-4tb) 9))
           (* (:drive-cost one-tb-drive) (min (accumulate-from-fccs :count-1tb) 4))))))
 
-(defn- valid-configurations [percent-key drive-arrays case target-size]
-  (let [block-range (inc (int (Math/floor (/ (:drives case) (:number-drives (first drive-arrays))))))
-        all-drive-array-configurations (map flatten (apply combo/cartesian-product
-                              (map #(make-possibilities block-range %) drive-arrays)))
-        configurations-with-right-number-of-drive-arrays (filter #(> block-range (count %))
-                                                                 all-drive-array-configurations)
-        configurations-with-right-target-size (filter #(< target-size (reduce (fn [r v] (+ r (percent-key v))) 0 %))
-                                                      configurations-with-right-number-of-drive-arrays)]
-    (map (fn [v] {:valid-drive-array-configuration v :case case}) configurations-with-right-target-size)))
-
-(defn- generate-all-valid-configurations [[das cs sizes]]
-  (let [the-valid-configurations (map (fn [da c size]
-                                        (valid-configurations :tib-50-percent da c size))
-                                      das cs sizes)]
-    (apply combo/cartesian-product the-valid-configurations)))
-
 (defn- generate-valid-storage-systems [s]
   {:valid-storage-systems (list {:the-total-cost (calculate-storage-system-cost s)
                                  :details s})})
 
 (defn- retrieve-the-total-cost [c]
-  (:the-total-cost (first (:valid-storage-systems c))))
+  (if c
+    (:the-total-cost (first (:valid-storage-systems c)))
+    0.00M))
+
+(defn- retrieve-the-total-drives [c]
+  (println "retrieve!")
+  (if c
+    (let [details (:details (first (:valid-storage-systems c)))]
+      (apply + (map #(:number-drives (first (:valid-drive-array-configuration %))) details)))
+    0))
 
 (defn- generate-cheapest-valid-storage-systems [l]
-  (loop [all-configurations (generate-all-valid-configurations l)
-         min-configuration nil]
-    (if (empty? all-configurations)
-      (do
-        (println (retrieve-the-total-cost min-configuration))
-        min-configuration)
-      (let [s (first all-configurations)
-            the-total-cost (calculate-storage-system-cost s)
-            new-min-configuration (cond
-                                    (nil? min-configuration)
-                                    (generate-valid-storage-systems s)
-                                    (< the-total-cost
-                                       (:the-total-cost (first (:valid-storage-systems min-configuration))))
-                                    (generate-valid-storage-systems s)
-                                    :else
-                                    min-configuration)]
-        (recur (rest all-configurations) new-min-configuration)))) )
+  (let [result (reduce (fn [r v] (let [vss (generate-valid-storage-systems v)
+                                       the-total-cost-vss (retrieve-the-total-cost vss)
+                                       the-total-cost-r (retrieve-the-total-cost r)]
+                                   (cond
+                                     (nil? r) vss
+                                     (< the-total-cost-vss the-total-cost-r) vss
+                                     (= the-total-cost-vss the-total-cost-r)
+                                     (let [the-total-drives-vss (retrieve-the-total-drives vss)
+                                           the-total-drives-r (retrieve-the-total-drives r)]
+                                       (if (< the-total-drives-vss the-total-drives-r)
+                                         vss
+                                         r))
+                                     :else r)))
+                       nil (generate-all-valid-configurations l))]
+    (println (retrieve-the-total-cost result))
+    result))
 
 (defn- configuration-to-drive-array-names [c]
   (map #(str (:array-name %) " x" (:number-drives %)) c))
@@ -169,17 +178,18 @@
                                                 (list raid-one-z-four-drive-arrays)
                                                 (list raid-one-z-five-drive-arrays)
                                                 (list mirror-drive-arrays))
-                                          (list (list one-r5)
-                                                (list one-xl))
-                                          (list (list lan-combined-target-size)))
+                                          (list (list one-r5 one-phanteks-itx)
+                                                (list one-xl one-phanteks-itx))
+                                          (list (list lan-combined-target-size dmz-combined-target-size)))
         separate (combo/cartesian-product (combo/selections (list raid-one-z-three-drive-arrays
                                                                   raid-one-z-four-drive-arrays
                                                                   raid-one-z-five-drive-arrays
                                                                   mirror-drive-arrays) 2)
-                                          (list (repeat 2 one-r5)
-                                                (repeat 2 one-xl))
+                                          (list (list one-r5 one-r5 one-phanteks-itx)
+                                                (list one-xl one-xl one-phanteks-itx))
                                           (list (list lan-server-target-size
-                                                      lan-client-target-size)))
+                                                      lan-client-target-size
+                                                      dmz-combined-target-size)))
         all-valid-storage-systems (apply merge-with
                                          concat
                                          (filter identity
@@ -191,28 +201,4 @@
     (println (:the-total-cost (first sorted-configurations)))
     (dorun (map #(output-configuration %) (:details (first sorted-configurations))))))
 
-(comment
-  (defn- output-result [best-price best-array]
-    (do
-      (println best-price)
-      (println (configuration-to-drive-array-names (first best-array)))))
-
-  (defn -main
-    "I don't do a whole lot ... yet."
-    [& args]
-    (let [best-raid-one (best-answers raid-one-z-five-drive-arrays :tib-50-percent)
-          best-raid-one-price (final-cost-of-configuration (first best-raid-one))
-          best-mirror (best-answers mirror-drive-arrays :tib-50-percent)
-          best-mirror-price (final-cost-of-configuration (first best-mirror))]
-      (cond
-        (and (seq best-raid-one) (seq best-mirror))
-        (if (< best-mirror-price best-raid-one-price)
-          (output-result best-mirror-price best-mirror)
-          (output-result best-raid-one-price best-raid-one))
-        (seq best-raid-one)
-        (output-result best-raid-one-price best-raid-one)
-        (seq best-mirror)
-        (output-result best-mirror-price best-mirror)
-        :else
-        (println "Found nothing!")))))
 
