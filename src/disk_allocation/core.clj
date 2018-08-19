@@ -141,7 +141,6 @@
     0.00M))
 
 (defn- retrieve-the-total-drives [c]
-  (println "retrieve!")
   (if c
     (let [details (:details (first (:valid-storage-systems c)))]
       (apply + (map #(:number-drives (first (:valid-drive-array-configuration %))) details)))
@@ -174,17 +173,17 @@
   (println (configuration-to-drive-array-names valid-drive-array-configuration)))
 
 (defn -main []
-  (let [combined (combo/cartesian-product (list (list raid-one-z-three-drive-arrays)
-                                                (list raid-one-z-four-drive-arrays)
-                                                (list raid-one-z-five-drive-arrays)
-                                                (list mirror-drive-arrays))
+  (let [combined (combo/cartesian-product (combo/selections (list raid-one-z-three-drive-arrays
+                                                                  raid-one-z-four-drive-arrays
+                                                                  raid-one-z-five-drive-arrays
+                                                                  mirror-drive-arrays) 2)
                                           (list (list one-r5 one-phanteks-itx)
                                                 (list one-xl one-phanteks-itx))
                                           (list (list lan-combined-target-size dmz-combined-target-size)))
         separate (combo/cartesian-product (combo/selections (list raid-one-z-three-drive-arrays
                                                                   raid-one-z-four-drive-arrays
                                                                   raid-one-z-five-drive-arrays
-                                                                  mirror-drive-arrays) 2)
+                                                                  mirror-drive-arrays) 3)
                                           (list (list one-r5 one-r5 one-phanteks-itx)
                                                 (list one-xl one-xl one-phanteks-itx))
                                           (list (list lan-server-target-size
