@@ -2,11 +2,11 @@
   (:require [clojure.math.combinatorics :as combo])
   (:gen-class))
 
-(defrecord Case [drives additional-cost name])
+(defrecord Case [three-point-five-drives two-point-five-drives additional-cost name])
 
-(def one-r5 (Case. 10 0.00M "r5"))
-(def one-xl (Case. 14 132.99M "xl"))
-(def one-phanteks-itx (Case. 5 89.99M "Phanteks ITX"))
+(def one-r5 (Case. 11 2 0.00M "r5"))
+(def one-xl (Case. 14 0 132.99M "xl"))
+(def one-phanteks-itx (Case. 2 3 89.99M "Phanteks ITX"))
 
 (def one-tb-to-tib 0.909495M)
 (def lan-server-target-size (* 9.128M 2.5M one-tb-to-tib))
@@ -17,13 +17,13 @@
 (def dmz-client-target-size (* 0.48M 1.5M one-tb-to-tib))
 (def dmz-combined-target-size (+ dmz-server-target-size dmz-client-target-size))
 
-(defrecord Drive [drive-size drive-cost])
-(def one-tb-drive (Drive. 1 59.99M))
-(def four-tb-drive (Drive. 4 121.11M))
-(def six-tb-drive (Drive. 6 179.99M))
-(def eight-tb-drive (Drive. 8 226.70M))
-(def ten-tb-drive (Drive. 10 304.48M))
-(def twelve-tb-drive (Drive. 12 399.89M))
+(defrecord Drive [drive-size can-be-two-point-five-drive drive-cost])
+(def one-tb-drive (Drive. 1 true 59.99M))
+(def four-tb-drive (Drive. 4 false 121.11M))
+(def six-tb-drive (Drive. 6 false 179.99M))
+(def eight-tb-drive (Drive. 8 false 226.70M))
+(def ten-tb-drive (Drive. 10 false 304.48M))
+(def twelve-tb-drive (Drive. 12 false 399.89M))
 
 (defrecord DriveArray [array-name number-drives tib-50-percent tib-80-percent drive])
 
@@ -82,20 +82,38 @@
 (defn- make-possibilities [number r]
   (map #(repeat % r) (range 0 number)))
 
-(defn- valid-configurations [percent-key drive-arrays case target-size]
-  (let [block-range (inc (int (Math/floor (/ (:drives case) (:number-drives (first drive-arrays))))))
-        all-drive-array-configurations (map flatten (apply combo/cartesian-product
-                              (map #(make-possibilities block-range %) drive-arrays)))
+(defn- is-right-physical-drive-size [case drive-arrays-configuration]
+  (if (seq drive-arrays-configuration)
+    (if (:can-be-two-point-five-drive (first drive-arrays-configuration))
+      true
+      (<= (* (:number-drives (first drive-arrays-configuration))
+             (count drive-arrays-configuration))
+          (:three-point-five-drives case)))
+    true))
+
+(defn- valid-machines [percent-key drive-arrays case target-size]
+  (let [block-range (inc (int (Math/floor (/ (+ (:three-point-five-drives case)
+                                                (:two-point-five-drives case))
+                                             (:number-drives (first drive-arrays))))))
+        all-drive-arrays-configurations (map flatten
+                                            (apply combo/cartesian-product
+                                                   (map #(make-possibilities block-range %)
+                                                        drive-arrays)))
         configurations-with-right-number-of-drive-arrays (filter #(> block-range (count %))
-                                                                 all-drive-array-configurations)
+                                                                 all-drive-arrays-configurations)
+        configurations-with-right-physical-drive-sizes (filter (partial is-right-physical-drive-size case)
+                                                               configurations-with-right-number-of-drive-arrays)
         configurations-with-right-target-size (filter #(< target-size (reduce (fn [r v] (+ r (percent-key v))) 0 %))
-                                                      configurations-with-right-number-of-drive-arrays)]
+                                                      configurations-with-right-physical-drive-sizes)]
     (map (fn [v] {:valid-drive-array-configuration v :case case}) configurations-with-right-target-size)))
 
-(defn- generate-all-valid-configurations [[das cs sizes]]
-  (let [the-valid-configurations (map (fn [da c size]
-                                        (valid-configurations :tib-50-percent da c size))
-                                      das cs sizes)]
+(defn- generate-all-valid-machines [[list-of-drive-arrays cases target-sizes]]
+  (let [the-valid-configurations (map (fn [drive-arrays case target-size]
+                                        (valid-machines :tib-50-percent
+                                                        drive-arrays
+                                                        case
+                                                        target-size))
+                                      list-of-drive-arrays cases target-sizes)]
     (apply combo/cartesian-product the-valid-configurations)))
 
 (defn- drive-size [drive-array]
@@ -133,7 +151,7 @@
 
 (defn- generate-valid-storage-systems [s]
   {:valid-storage-systems (list {:the-total-cost (calculate-storage-system-cost s)
-                                 :details s})})
+                                 :machines       s})})
 
 (defn- retrieve-the-total-cost [c]
   (if c
@@ -142,8 +160,8 @@
 
 (defn- retrieve-the-total-drives [c]
   (if c
-    (let [details (:details (first (:valid-storage-systems c)))]
-      (apply + (map #(:number-drives (first (:valid-drive-array-configuration %))) details)))
+    (let [machines (:machines (first (:valid-storage-systems c)))]
+      (apply + (map #(:number-drives (first (:valid-drive-array-configuration %))) machines)))
     0))
 
 (defn- generate-cheapest-valid-storage-systems [l]
@@ -160,7 +178,7 @@
                                          vss
                                          r))
                                      :else r)))
-                       nil (generate-all-valid-configurations l))]
+                       nil (generate-all-valid-machines l))]
     (println (retrieve-the-total-cost result))
     result))
 
@@ -198,6 +216,6 @@
                                        (:valid-storage-systems all-valid-storage-systems))]
     (println "----")
     (println (:the-total-cost (first sorted-configurations)))
-    (dorun (map #(output-configuration %) (:details (first sorted-configurations))))))
+    (dorun (map #(output-configuration %) (:machines (first sorted-configurations))))))
 
 
