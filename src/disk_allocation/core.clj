@@ -2,13 +2,30 @@
   (:require [clojure.math.combinatorics :as combo])
   (:gen-class))
 
-(defrecord Case [three-point-five-drives two-point-five-drives additional-cost name])
+(defrecord Cpu [cost name])
+(def e5-2603-v3 (->Cpu 221.00M "e5-2603-v3"))
+(def e5-2603-v4 (->Cpu 229.99M "e5-2603-v4"))
+(def g3900 (->Cpu 36.99M "g3900"))
+(def g3930 (->Cpu 35.99M "g3930"))
 
-(def one-r5 (Case. 11 2 0.00M "r5"))
-(def one-xl (Case. 14 0 132.99M "xl"))
-(def one-phanteks-itx (Case. 2 3 89.99M "Phanteks ITX"))
-(def one-define-mini (Case. 9 0 (* 2 (+ 123.52M 39.97M)) "Mini"))
-(def one-silencio (Case. 4 4 79.99M "Silencio"))
+(defrecord Hba [additional-sata-connectors cost name])
+(def hba-9211-4i (->Hba 4 75.50M "9211-4i"))
+(def hba-9211-8i (->Hba 8 78.00M "9211-8i"))
+
+(defrecord Motherboard [number-sata-connections cost])
+(def msi-x99a-tomahawk (->Motherboard 10 (+ 104.99M 235.99M))) ; 16GB ECC memory
+(def augmented-msi-x99a-tomahawk (->Motherboard 10 (+ 104.99M 235.99M 235.99M))) ; 32GB ECC memory
+(def asrock-x99m (->Motherboard 10 (+ 199.99M 53.11M 53.11M))) ; DeepServer3
+(def ga-9sisl (->Motherboard 6 (+ 233.99M 98.00M)))         ; DeepDivide
+(def supermicro-x11ssh (->Motherboard 8 (+ 198.99M 117.99M))) ; Motherboard plus 8GB ECC memory
+(def augmented-supermicro-x11ssh (->Motherboard 8 (+ 198.99M 235.99M))) ; Motherboard plus 16GB ECC memory
+
+(defrecord Case [three-point-five-drives two-point-five-drives cost name])
+(def one-r5 (->Case 11 2 0.00M "r5"))
+(def one-xl (->Case 14 0 132.99M "xl"))
+(def one-phanteks-itx (->Case 2 3 89.99M "Phanteks ITX"))
+(def one-define-mini (->Case 9 0 (* 2 (+ 123.52M 39.97M)) "Mini"))
+(def one-silencio (->Case 4 4 79.99M "Silencio"))
 
 (def one-tb-to-tib 0.909495M)
 (def lan-server-target-size (* 9.128M 2.5M one-tb-to-tib))
@@ -19,10 +36,84 @@
 (def dmz-client-target-size (* 0.48M 1.5M one-tb-to-tib))
 (def dmz-combined-target-size (+ dmz-server-target-size dmz-client-target-size))
 
+(defrecord Machine [^Case case ^Motherboard mb ^Cpu cpu ^Hba hba target-size])
+
+(defn- generate-machines [all-components]
+  (map (fn [[case mb cpu hba size]] (->Machine case mb cpu hba size)) all-components))
+
+(def all-lan-servers (generate-machines (combo/cartesian-product (list one-r5 one-xl one-define-mini one-silencio)
+                                                                 (list asrock-x99m)
+                                                                 (list e5-2603-v4)
+                                                                 (list nil)
+                                                                 (list nil))))
+
+(def all-dmz-servers (generate-machines (combo/cartesian-product (list one-r5 one-xl one-define-mini one-silencio one-phanteks-itx)
+                                                                 (list ga-9sisl)
+                                                                 (list nil)
+                                                                 (list nil)
+                                                                 (list nil))))
+
+(def all-storage-in-one-machine
+  (map list
+       (generate-machines (combo/cartesian-product (list one-r5)
+                                                   (list augmented-msi-x99a-tomahawk)
+                                                   (list e5-2603-v3)
+                                                   (list nil hba-9211-4i hba-9211-8i)
+                                                   (list (list lan-combined-target-size dmz-combined-target-size))))))
+
+(defn- big-storage-box [size-list]
+  (generate-machines (combo/cartesian-product (list one-r5 one-xl)
+                                              (list msi-x99a-tomahawk)
+                                              (list e5-2603-v3)
+                                              (list nil hba-9211-4i hba-9211-8i)
+                                              size-list)))
+
+(defn- small-storage-box [size-list]
+  (generate-machines (combo/cartesian-product (list one-r5 one-xl one-silencio one-define-mini)
+                                              (list supermicro-x11ssh)
+                                              (list g3900 g3930)
+                                              (list nil hba-9211-4i hba-9211-8i)
+                                              size-list)))
+
+(def all-storage-in-two-machines
+  (map list
+       (big-storage-box (list (list lan-combined-target-size)))
+       (small-storage-box (list (list dmz-combined-target-size)))))
+
+(def storage-with-lan-split
+  (map list
+       (big-storage-box (list (list lan-server-target-size)))
+       (small-storage-box (list (list lan-client-target-size)))
+       (small-storage-box (list (list dmz-combined-target-size)))))
+
+(def storage-with-dmz-split
+  (map list
+       (big-storage-box (list (list lan-combined-target-size)))
+       (small-storage-box (list (list dmz-server-target-size)))
+       (small-storage-box (list (list dmz-client-target-size)))))
+
+(def all-storage-in-four-machines
+  (map list
+       (big-storage-box (list (list lan-server-target-size)))
+       (small-storage-box (list (list lan-client-target-size)))
+       (small-storage-box (list (list dmz-server-target-size)))
+       (small-storage-box (list (list dmz-client-target-size)))))
+
+
+(def all-systems (map (fn [[storage lan-server dmz-server]]
+                        {:storage-machines storage :lan-server lan-server :dmz-server dmz-server})
+                      (combo/cartesian-product (concat all-storage-in-one-machine
+                                                       all-storage-in-two-machines
+                                                       storage-with-lan-split
+                                                       storage-with-dmz-split
+                                                       all-storage-in-four-machines)
+                                               all-lan-servers
+                                               all-dmz-servers)))
+
 (defrecord Drive [drive-size can-be-two-point-five-drive drive-cost])
 (def one-tb-drive (Drive. 1 true 59.99M))
-(def four-tb-drive (Drive. 4 false 121.11M))
-(def six-tb-drive (Drive. 6 false 179.99M))
+(def four-tb-drive (Drive. 4 false 117.99M))                ; NewEgg 2018-08-20 flyer, ends 2018-08-22
+(def six-tb-drive (Drive. 6 false 174.99M))                 ; NewEgg 2018-08-17 flyer, ends 2018-08-21
 (def eight-tb-drive (Drive. 8 false 226.70M))
 (def ten-tb-drive (Drive. 10 false 304.48M))
 (def twelve-tb-drive (Drive. 12 false 399.89M))
@@ -128,14 +219,16 @@
   (* (drive-cost drive-array) (:number-drives drive-array)))
 
 (defn- final-cost-of-configuration [{:keys [valid-drive-array-configuration case]}]
-  (let [number-drives (:number-drives (first valid-drive-array-configuration))]
+  (let [number-drives-in-array (:number-drives (first valid-drive-array-configuration))
+        total-number-of-drives-in-configuration (* (count valid-drive-array-configuration)
+                                                   number-drives-in-array)]
     {:the-cost            (reduce (fn [r v] (+ r (cost-of-drive-array v))) 0 valid-drive-array-configuration)
-     :the-additional-cost (:additional-cost case)
-     :count-4tb           (* number-drives
+     :the-additional-cost (:cost case)
+     :count-4tb           (* number-drives-in-array
                              (count (filter #(= (drive-size %)
                                                 (:drive-size four-tb-drive))
                                             valid-drive-array-configuration)))
-     :count-1tb           (* number-drives
+     :count-1tb           (* number-drives-in-array
                              (count (filter #(= (drive-size %)
                                                 (:drive-size one-tb-drive))
                                             valid-drive-array-configuration)))}))
@@ -166,23 +259,50 @@
       (apply + (map #(:number-drives (first (:valid-drive-array-configuration %))) machines)))
     0))
 
+(defn- replace-if-cheaper [vss r]
+  (let [the-total-cost-vss (retrieve-the-total-cost vss)
+        the-total-cost-r (retrieve-the-total-cost r)]
+    (cond
+      (nil? r) vss
+      (< the-total-cost-vss the-total-cost-r) vss
+      (= the-total-cost-vss the-total-cost-r)
+      (let [the-total-drives-vss (retrieve-the-total-drives vss)
+            the-total-drives-r (retrieve-the-total-drives r)]
+        (if (< the-total-drives-vss the-total-drives-r)
+          vss
+          r))
+      :else r)))
+
 (defn- generate-cheapest-valid-storage-systems [l]
-  (let [result (reduce (fn [r v] (let [vss (generate-valid-storage-systems v)
-                                       the-total-cost-vss (retrieve-the-total-cost vss)
-                                       the-total-cost-r (retrieve-the-total-cost r)]
-                                   (cond
-                                     (nil? r) vss
-                                     (< the-total-cost-vss the-total-cost-r) vss
-                                     (= the-total-cost-vss the-total-cost-r)
-                                     (let [the-total-drives-vss (retrieve-the-total-drives vss)
-                                           the-total-drives-r (retrieve-the-total-drives r)]
-                                       (if (< the-total-drives-vss the-total-drives-r)
-                                         vss
-                                         r))
-                                     :else r)))
+  (let [result (reduce (fn [r v] (let [vss (generate-valid-storage-systems v)]
+                                   (replace-if-cheaper vss r)))
                        nil (generate-all-valid-machines l))]
     (println (retrieve-the-total-cost result))
     result))
+
+(defn- system-total-cost [system]
+  0.00M)
+
+(defn- system-machine-count [system]
+  2)
+
+(defn- find-cheapest-system []
+  (reduce (fn [r v] (let [r-cost (system-total-cost r)
+                          v-cost (system-total-cost v)]
+                      (cond
+                        (nil? r) v
+                        (< v-cost r-cost) v
+                        (= v-cost r-cost) (let [r-count (system-machine-count r)
+                                                v-count (system-machine-count v)]
+                                            (if (< v-count r-count)
+                                              v
+                                              r)))))
+          nil
+          all-systems))
+
+
+
+
 
 (defn- configuration-to-drive-array-names [c]
   (map #(str (:array-name %) " x" (:number-drives %)) c))
@@ -193,22 +313,21 @@
   (println (configuration-to-drive-array-names valid-drive-array-configuration)))
 
 (defn -main []
-  (let [combined (combo/cartesian-product (combo/selections (list raid-one-z-three-drive-arrays
+  (let [small-cases (combo/selections (list one-phanteks-itx
+                                            one-silencio) 1)
+        combined (combo/cartesian-product (combo/selections (list raid-one-z-three-drive-arrays
                                                                   raid-one-z-four-drive-arrays
                                                                   raid-one-z-five-drive-arrays
                                                                   mirror-drive-arrays) 2)
-                                          (list (list one-r5 one-phanteks-itx)
-                                                (list one-xl one-phanteks-itx))
+                                          (concat (map #(concat (list one-r5) %) small-cases)
+                                                  (map #(concat (list one-xl) %) small-cases))
                                           (list (list lan-combined-target-size dmz-combined-target-size)))
         separate (combo/cartesian-product (combo/selections (list raid-one-z-three-drive-arrays
                                                                   raid-one-z-four-drive-arrays
                                                                   raid-one-z-five-drive-arrays
                                                                   mirror-drive-arrays) 3)
-                                          (let [small-cases (combo/selections (list one-phanteks-itx
-                                                                                    one-define-mini
-                                                                                    one-silencio) 1)]
-                                            (concat (map #(concat (repeat 2 one-r5) %) small-cases)
-                                                    (map #(concat (repeat 2 one-xl) %) small-cases)))
+                                          (concat (map #(concat (list one-r5 one-r5) %) small-cases)
+                                                  (map #(concat (repeat 2 one-xl) %) small-cases))
                                           (list (list lan-server-target-size
                                                       lan-client-target-size
                                                       dmz-combined-target-size)))
@@ -217,10 +336,13 @@
                                          (filter identity
                                                  (map generate-cheapest-valid-storage-systems
                                                       (concat combined separate))))
-        sorted-configurations (sort-by :the-total-cost
-                                       (:valid-storage-systems all-valid-storage-systems))]
+        final-answer (reduce (fn [r v] (let [vss {:valid-storage-systems (list v)}]
+                                         (replace-if-cheaper vss r)))
+                             nil
+                             (:valid-storage-systems all-valid-storage-systems))
+        cheapest-valid-storage-system (first (:valid-storage-systems final-answer))]
     (println "----")
-    (println (:the-total-cost (first sorted-configurations)))
-    (dorun (map #(output-configuration %) (:machines (first sorted-configurations))))))
+    (println (:the-total-cost cheapest-valid-storage-system))
+    (dorun (map #(output-configuration %) (:machines cheapest-valid-storage-system)))))
 
 
