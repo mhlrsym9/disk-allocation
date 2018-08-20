@@ -7,6 +7,8 @@
 (def one-r5 (Case. 11 2 0.00M "r5"))
 (def one-xl (Case. 14 0 132.99M "xl"))
 (def one-phanteks-itx (Case. 2 3 89.99M "Phanteks ITX"))
+(def one-define-mini (Case. 9 0 (* 2 (+ 123.52M 39.97M)) "Mini"))
+(def one-silencio (Case. 4 4 79.99M "Silencio"))
 
 (def one-tb-to-tib 0.909495M)
 (def lan-server-target-size (* 9.128M 2.5M one-tb-to-tib))
@@ -202,8 +204,11 @@
                                                                   raid-one-z-four-drive-arrays
                                                                   raid-one-z-five-drive-arrays
                                                                   mirror-drive-arrays) 3)
-                                          (list (list one-r5 one-r5 one-phanteks-itx)
-                                                (list one-xl one-xl one-phanteks-itx))
+                                          (let [small-cases (combo/selections (list one-phanteks-itx
+                                                                                    one-define-mini
+                                                                                    one-silencio) 1)]
+                                            (concat (map #(concat (repeat 2 one-r5) %) small-cases)
+                                                    (map #(concat (repeat 2 one-xl) %) small-cases)))
                                           (list (list lan-server-target-size
                                                       lan-client-target-size
                                                       dmz-combined-target-size)))
