@@ -281,34 +281,30 @@
     (println (retrieve-the-total-cost result))
     result))
 
-(defn- is-right-number-of-sata-connections [{:keys [number-sata-connections]} hba drive-array-configuration]
-  (let [total-sata-connections (+ number-sata-connections (:additional-sata-connectors hba))
-        total-number-drives (* (:number-drives (first drive-array-configuration)) (count drive-array-configuration))]
-    (>= total-sata-connections total-number-drives)))
-
 (defn- generate-all-valid-machines [{:keys [case mb hba], [the-target-size] :target-size} percent-key drive-arrays]
-  (let [block-range (inc (int (Math/floor (/ (+ (:three-point-five-drives case)
-                                                (:two-point-five-drives case))
-                                             (:number-drives (first drive-arrays))))))
+  (let [maximum-number-of-drives-in-case (+ (:three-point-five-drives case)
+                                            (:two-point-five-drives case))
+        maximum-number-of-drives-on-mb (+ (:number-sata-connections mb)
+                                          (:additional-sata-connectors hba))
+        block-range (int (Math/floor (/ (min maximum-number-of-drives-in-case
+                                             maximum-number-of-drives-on-mb)
+                                        (:number-drives (first drive-arrays)))))
         all-drive-arrays-configurations (filter seq
-                                                (map (fn [dac] (apply concat dac))
+                                                (map (fn [dac] (filter identity dac))
                                                      (apply combo/cartesian-product
-                                                            (map (fn [da] (make-possibilities block-range da))
-                                                                 drive-arrays))))
-        configurations-with-right-number-of-drive-arrays (filter #(> block-range (count %))
-                                                                 all-drive-arrays-configurations)
+                                                            (repeat block-range
+                                                                    (cons nil drive-arrays)))))
         configurations-with-right-physical-drive-sizes (filter (partial is-right-physical-drive-size case)
-                                                               configurations-with-right-number-of-drive-arrays)
-        configurations-with-right-number-of-sata-connections (filter (partial is-right-number-of-sata-connections mb hba)
-                                                                     configurations-with-right-physical-drive-sizes)]
+                                                               all-drive-arrays-configurations)]
     (filter #(< the-target-size (reduce (fn [r v] (+ r (percent-key v))) 0 %))
-            configurations-with-right-number-of-sata-connections)))
+            configurations-with-right-physical-drive-sizes)))
 
 (defn- generate-all-valid-storage-machines [^Machine sm]
   (map (fn [dac] {:drive-array-configuration dac :storage-machine sm})
        (mapcat (fn [das] (generate-all-valid-machines sm :tib-50-percent das)) all-drive-arrays)))
 
-(defn- generate-all-valid-storage-machine-configurations [smc]
+(defn- generate-all-valid-storage-machine-configurations [idx smc]
+  (println (str "Checking SMC " idx))
   (apply combo/cartesian-product (map #(generate-all-valid-storage-machines %) smc)))
 
 (defn- drive-array-total-cost [{:keys [number-drives], {:keys [drive-cost]} :drive}]
@@ -324,32 +320,81 @@
   (+ (reduce (fn [r v] (+ r (drive-array-total-cost v))) 0.00M drive-array-configuration)
      (machine-total-cost storage-machine)))
 
-(defn- storage-configuration-total-cost [[smc lan dmz]]
-  (+ (reduce (fn [r v] (+ r (storage-machine-total-cost v))) 0.00M smc)
-     (machine-total-cost lan)
-     (machine-total-cost dmz)))
+(defn- does-cpu-match? [^Machine machine cpu]
+  (= (:name (:cpu machine)) (:name cpu)))
+
+(defn- does-hba-match? [^Machine machine hba]
+  (= (:name (:hba machine)) (:name hba)))
+
+(defn- does-mb-match? [^Machine machine mb]
+  (= (:name (:mb machine)) (:name mb)))
+
+(defn- does-case-match? [^Machine machine case]
+  (= (:name (:case machine)) (:name case)))
+
+(defn- count-matching-items-in-system-configuration [[smc lan dmz] item does-item-match-fnc?]
+  (count (filter (fn [^Machine machine] (does-item-match-fnc? machine item))
+                 (concat (list lan dmz) (map #(:storage-machine %) smc)))))
+
+(defn- adjust-cost-for-matching-items-in-system-configuration [sc item does-item-match-fnc? held]
+  (* (:cost item)
+     (min held (count-matching-items-in-system-configuration sc item does-item-match-fnc?))))
+
+(def adjustments (list (list e5-2603-v3 does-cpu-match? 1)
+                       (list e5-2603-v4 does-cpu-match? 1)
+                       (list g3900 does-cpu-match? 1)
+                       (list atom-c2750 does-cpu-match? 1)
+                       (list hba-9211-8i does-hba-match? 1)
+                       (list asrock-x99m does-mb-match? 1)
+                       (list ga-9sisl does-mb-match? 1)
+                       (list one-r5 does-case-match? 2)
+                       (list one-phanteks-itx does-case-match? 1)
+                       (list one-silencio does-case-match? 1)))
+
+(defn- storage-configuration-total-cost [[smc lan dmz :as sc]]
+  (- (+ (reduce (fn [r v] (+ r (storage-machine-total-cost v))) 0.00M smc)
+        (machine-total-cost lan)
+        (machine-total-cost dmz))
+     (apply + (map (fn [[item match-fnc held]]
+                     (adjust-cost-for-matching-items-in-system-configuration sc item match-fnc held))
+                   adjustments))
+     ; Adjust for extra memory in augmented machine.
+     (let [number-msi (count-matching-items-in-system-configuration sc msi-x99a-tomahawk does-mb-match?)
+           number-augmented-msi (count-matching-items-in-system-configuration sc augmented-msi-x99a-tomahawk does-mb-match?)]
+       (cond (< 0 number-msi)
+             (:cost msi-x99a-tomahawk)
+             (< 0 number-augmented-msi)
+             (- (:cost augmented-msi-x99a-tomahawk) (:cost msi-x99a-tomahawk))
+             :else 0.00M))))
 
 (defn- storage-configuration-machine-count [sc]
   2)
 
+(defn- replacing-message [r-cost v-cost]
+  (println (str "Replacing system configuration costing " r-cost " with one costing " v-cost)))
+
 (defn- find-cheapest-system []
-  (let [all-valid-storage-machine-configurations (mapcat #(generate-all-valid-storage-machine-configurations %)
-                                                         all-storage-machine-configurations)
+  (let [all-valid-storage-machine-configurations (mapcat #(generate-all-valid-storage-machine-configurations %1 %2)
+                                                         (range) all-storage-machine-configurations)
         all-valid-system-configurations (combo/cartesian-product all-valid-storage-machine-configurations
                                                                  all-lan-servers
                                                                  all-dmz-servers)]
     (reduce (fn [r v] (let [r-cost (storage-configuration-total-cost r)
                             v-cost (storage-configuration-total-cost v)]
                         (cond
-                          (< v-cost r-cost) v
+                          (< v-cost r-cost) (do
+                                              (replacing-message r-cost v-cost)
+                                              v)
                           (= v-cost r-cost) (let [r-count (storage-configuration-machine-count r)
                                                   v-count (storage-configuration-machine-count v)]
                                               (if (< v-count r-count)
-                                                v
+                                                (do
+                                                  (replacing-message r-cost v-cost)
+                                                  v)
                                                 r))
                           :else r)))
             (first all-valid-system-configurations)
-            (rest (take 10 all-valid-system-configurations)))))
+            (rest (take 10000000 all-valid-system-configurations)))))
 
 
 
