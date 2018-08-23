@@ -91,7 +91,7 @@
   (combo/cartesian-product
        (big-storage-box (list (list lan-server-target-size)) :lan)
        (small-storage-box (list (list lan-client-target-size)) :lan)
-       (small-storage-box (list (list dmz-combined-target-size)) :lan)))
+       (small-storage-box (list (list dmz-combined-target-size)) :dmz)))
 
 (def storage-with-dmz-split
   (combo/cartesian-product
@@ -177,6 +177,13 @@
                             raid-one-z-four-drive-arrays
                             raid-one-z-five-drive-arrays
                             mirror-drive-arrays))
+
+(def all-drive-array-configurations
+  (map (fn [[br das]] {:br                              br
+                       :das                             das
+                       :all-drive-arrays-configurations (mapcat #(combo/selections das %)
+                                                                (range 1 br))})
+       (mapcat (fn [br] (map (fn [das] (list br das)) all-drive-arrays)) (range 1 12))))
 
 (defn- make-possibilities [number r]
   (map #(repeat % r) (range 0 number)))
@@ -305,9 +312,11 @@
         block-range (inc (int (Math/floor (/ (min maximum-number-of-drives-in-case
                                                   maximum-number-of-drives-on-mb)
                                              (:number-drives (first drive-arrays))))))
-        all-drive-arrays-configurations (mapcat #(combo/selections drive-arrays %) (range 1 block-range))
+        all-dacs (:all-drive-arrays-configurations (first (filter (fn [{:keys [br]}] (= block-range br))
+                                                                  (filter (fn [{:keys [das]}] (= drive-arrays das))
+                                                                          all-drive-array-configurations))))
         configurations-with-right-physical-drive-sizes (filter (partial is-right-physical-drive-size case)
-                                                               all-drive-arrays-configurations)]
+                                                               all-dacs)]
     (filter #(let [drive-array-configuration-size (reduce (fn [r v] (+ r (percent-key v))) 0 %)]
                (and (<= the-target-size drive-array-configuration-size)
                     (>= (maximum-target-size the-target-size) drive-array-configuration-size)))
@@ -316,9 +325,6 @@
 (defn- generate-all-valid-storage-machines [^Machine sm]
   (map (fn [dac] {:drive-array-configuration dac :storage-machine sm})
        (mapcat (fn [das] (generate-all-valid-machines sm :tib-50-percent das)) all-drive-arrays)))
-
-(defn- generate-all-valid-storage-machine-configurations [smc]
-  (apply combo/cartesian-product (map #(generate-all-valid-storage-machines %) smc)))
 
 (defn- drive-array-total-cost [{:keys [number-drives], {:keys [drive-cost]} :drive}]
   (* number-drives drive-cost))
@@ -333,6 +339,10 @@
   (+ (reduce (fn [r v] (+ r (drive-array-total-cost v))) 0.00M drive-array-configuration)
      (machine-total-cost storage-machine)))
 
+(defn- generate-all-valid-storage-machine-configurations [smc]
+  (map (fn [vsmc] {:vsmc vsmc :cost (reduce (fn [r v] (+ r (storage-machine-total-cost v))) 0.00M vsmc)})
+       (apply combo/cartesian-product (map #(generate-all-valid-storage-machines %) smc))))
+
 (defn- does-cpu-match? [^Machine machine cpu]
   (= (:name (:cpu machine)) (:name cpu)))
 
@@ -345,23 +355,23 @@
 (defn- does-case-match? [^Machine machine case]
   (= (:name (:case machine)) (:name case)))
 
-(defn- count-matching-items-in-system-configuration [[smc lan dmz] item does-item-match-fnc?]
+(defn- count-matching-items-in-system-configuration [[{:keys [vsmc]} lan dmz] item does-item-match-fnc?]
   (count (filter (fn [^Machine machine] (does-item-match-fnc? machine item))
-                 (concat (list lan dmz) (map #(:storage-machine %) smc)))))
+                 (concat (list lan dmz) (map #(:storage-machine %) vsmc)))))
 
 (defn- adjust-cost-for-matching-items-in-system-configuration [sc item does-item-match-fnc? held]
   (* (:cost item)
      (min held (count-matching-items-in-system-configuration sc item does-item-match-fnc?))))
 
-(defn- count-matching-drives-in-system-configuration [smc {:keys [drive-size]}]
+(defn- count-matching-drives-in-system-configuration [vsmc {:keys [drive-size]}]
   (count (filter (fn [ds] (= drive-size ds))
                  (mapcat (fn [{:keys [number-drives], {:keys [drive-size]} :drive}]
                            (repeat number-drives drive-size))
-                         (mapcat :drive-array-configuration smc)))))
+                         (mapcat :drive-array-configuration vsmc)))))
 
-(defn- adjust-cost-for-matching-drives-in-system-configuration [smc {:keys [drive-cost] :as drive} held]
+(defn- adjust-cost-for-matching-drives-in-system-configuration [vsmc {:keys [drive-cost] :as drive} held]
   (* drive-cost
-     (min held (count-matching-drives-in-system-configuration smc drive))))
+     (min held (count-matching-drives-in-system-configuration vsmc drive))))
 
 (def adjustments (list (list e5-2603-v3 does-cpu-match? 1)
                        (list e5-2603-v4 does-cpu-match? 1)
@@ -377,15 +387,15 @@
 (def drive-adjustments (list (list one-tb-drive 4)
                              (list four-tb-drive 9)))
 
-(defn- storage-configuration-total-cost [[smc lan dmz :as sc]]
-  (- (+ (reduce (fn [r v] (+ r (storage-machine-total-cost v))) 0.00M smc)
+(defn- storage-configuration-total-cost [[{:keys [cost vsmc]} lan dmz :as sc]]
+  (- (+ cost
         (machine-total-cost lan)
         (machine-total-cost dmz))
      (apply + (map (fn [[item match-fnc held]]
                      (adjust-cost-for-matching-items-in-system-configuration sc item match-fnc held))
                    adjustments))
      (apply + (map (fn [[drive held]]
-                     (adjust-cost-for-matching-drives-in-system-configuration smc drive held))
+                     (adjust-cost-for-matching-drives-in-system-configuration vsmc drive held))
                    drive-adjustments))
      ; Adjust for extra memory in augmented machine.
      (let [number-msi (count-matching-items-in-system-configuration sc msi-x99a-tomahawk does-mb-match?)
@@ -417,8 +427,8 @@
                                     :else false))
     :else false))
 
-(defn- keep-good-case-configurations [[smc lan dmz]]
-  (let [all-machines (concat (map :storage-machine smc) (list lan dmz))
+(defn- keep-good-case-configurations [[{:keys [vsmc]} lan dmz]]
+  (let [all-machines (concat (map :storage-machine vsmc) (list lan dmz))
         lan-machine-names (extract-sorted-machine-names (extract-machines-of-type :lan all-machines))
         dmz-machine-names (extract-sorted-machine-names (extract-machines-of-type :dmz all-machines))]
     (and (good-case-configuration? lan-machine-names) (good-case-configuration? dmz-machine-names))))
@@ -442,9 +452,9 @@
         all-system-configurations (combo/cartesian-product all-valid-storage-machine-configurations
                                                            all-lan-servers
                                                            all-dmz-servers)]
-    (map (fn [sc]
+    (map (fn [[{:keys [vsmc]} lan dmz :as sc]]
            {:cost                 (storage-configuration-total-cost sc)
-            :system-configuration sc})
+            :system-configuration (list vsmc lan dmz)})
          (filter keep-good-case-configurations all-system-configurations))))
 
 (defn- find-the-cheapest-system-for-this-storage-machine-configuration-list [smcl]
