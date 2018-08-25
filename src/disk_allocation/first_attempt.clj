@@ -23,7 +23,8 @@
      :count-1tb           (* number-drives-in-array
                              (count (filter #(= (drive-size %)
                                                 (:drive-size one-tb-drive))
-                                            valid-drive-array-configuration)))}))
+                                            valid-drive-array-configuration)))
+     :count-r5            (if (= (:name one-r5) (:name case)) 1 0)}))
 
 (defn- accumulate-from [fccs k]
   (reduce (fn [r v] (+ r (k v))) 0 fccs))
@@ -34,7 +35,8 @@
     (- (+ (accumulate-from-fccs :the-cost)
           (accumulate-from-fccs :the-additional-cost))
        (+ (* (:drive-cost four-tb-drive) (min (accumulate-from-fccs :count-4tb) 9))
-          (* (:drive-cost one-tb-drive) (min (accumulate-from-fccs :count-1tb) 4))))))
+          (* (:drive-cost one-tb-drive) (min (accumulate-from-fccs :count-1tb) 4))
+          (* (:cost one-r5) (min (accumulate-from-fccs :count-r5) 1))))))
 
 (defn- generate-valid-storage-systems [s]
   {:valid-storage-systems (list {:the-total-cost (calculate-storage-system-cost s)
@@ -108,7 +110,7 @@
   (println (:name case))
   (println (configuration-to-drive-array-names valid-drive-array-configuration)))
 
-(defn find-cheapest-system
+(defn find-cheapest-system []
   (let [small-cases (combo/selections (list one-phanteks-itx
                                             one-silencio) 1)
         combined (combo/cartesian-product (combo/selections (list raid-one-z-three-drive-arrays

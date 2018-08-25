@@ -112,10 +112,10 @@
 
 (defrecord Drive [drive-size can-be-two-point-five-drive drive-cost])
 (def one-tb-drive (Drive. 1 true 59.99M))
-(def four-tb-drive (Drive. 4 false 117.99M))                ; NewEgg 2018-08-20 flyer, ends 2018-08-22
-(def six-tb-drive (Drive. 6 false 174.99M))                 ; NewEgg 2018-08-17 flyer, ends 2018-08-21
+(def four-tb-drive (Drive. 4 false (/ 193.99M 2)))          ; NewEgg 2018-08-24 flyer, ends 2018-08-27
+(def six-tb-drive (Drive. 6 false 154.99M))                 ; NewEgg 2018-08-24 flyer, ends 2018-08-27
 (def eight-tb-drive (Drive. 8 false 226.70M))
-(def ten-tb-drive (Drive. 10 false 304.48M))
+(def ten-tb-drive (Drive. 10 false 289.99M))                ; NewEgg 2018-08-21 flyer, ends 2018-08-24
 (def twelve-tb-drive (Drive. 12 false 399.89M))
 
 (defrecord DriveArray [array-name number-drives tib-50-percent tib-80-percent drive])
