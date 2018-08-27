@@ -6,7 +6,8 @@
 (def e5-2603-v4 (->Cpu 229.99M "e5-2603-v4"))
 (def g3900 (->Cpu 36.99M "g3900"))
 (def g3930 (->Cpu 35.99M "g3930"))
-(def atom-c2750 (->Cpu 0.01M "atom-c2750") )
+(def atom-c2750 (->Cpu 0.01M "atom-c2750"))
+(def cheap-cpu (->Cpu 0.00M "cheap cpu"))
 
 (defrecord Hba [additional-sata-connectors cost name])
 (def hba-9211-4i (->Hba 4 75.50M "9211-4i"))
@@ -42,14 +43,18 @@
 (defn- generate-machines [all-components]
   (map (fn [[case mb cpu hba size type]] (->Machine case mb cpu hba size type)) all-components))
 
-(def all-lan-servers (generate-machines (combo/cartesian-product (list one-r5 one-xl one-define-mini one-silencio)
+(def list-of-lan-cases (list one-r5 one-xl one-define-mini one-silencio))
+(comment (def list-of-lan-cases (list one-r5)))
+(def all-lan-servers (generate-machines (combo/cartesian-product list-of-lan-cases
                                                                  (list asrock-x99m)
                                                                  (list e5-2603-v4)
                                                                  (list hba-none)
                                                                  (list nil)
                                                                  (list :lan))))
 
-(def all-dmz-servers (generate-machines (combo/cartesian-product (list one-r5 one-xl one-define-mini one-silencio one-phanteks-itx)
+(def list-of-dmz-cases (list one-r5 one-xl one-define-mini one-silencio one-phanteks-itx))
+(comment (def list-of-dmz-cases (list one-phanteks-itx)))
+(def all-dmz-servers (generate-machines (combo/cartesian-product list-of-dmz-cases
                                                                  (list ga-9sisl)
                                                                  (list atom-c2750)
                                                                  (list hba-none)
