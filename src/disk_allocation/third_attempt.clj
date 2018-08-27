@@ -6,8 +6,23 @@
 
 (def max-drives 16)
 
+(defn- max-number-drives-for-machine [{:keys [case hba mb]}]
+  (let [number-two-point-five-drives (:two-point-five-drives case)
+        max-number-drives-in-case (+ (:three-point-five-drives case)
+                                     number-two-point-five-drives)
+        max-number-drives-in-mb (+ (:number-sata-connections mb)
+                                   (:additional-sata-connectors hba))]
+    (if (<= max-number-drives-in-case max-number-drives-in-mb)
+      {:max-number-drives max-number-drives-in-case :number-two-point-five-drives number-two-point-five-drives}
+      {:max-number-drives max-number-drives-in-mb :number-two-point-five-drives (max 0 (- number-two-point-five-drives
+                                                                                              (- max-number-drives-in-case
+                                                                                                 max-number-drives-in-mb)))})))
+
+(defn- target-size-for-machine [{:keys [target-size]}]
+  {:target-size (first target-size)})
+
 (defn- generate-storage-configuration-pattern [smc]
-  (map (fn [{:keys [number-drives target-size]}] (list number-drives target-size)) smc))
+  (map (fn [mc] (merge (max-number-drives-for-machine mc) (target-size-for-machine mc))) smc))
 
 (defn- valid-drive-arrays [number-drives]
   (filter (fn [da]
@@ -21,40 +36,48 @@
                                         (:number-drives (first (first da))))))
           valid-drive-arrays))
 
-(defn- create-sorted-drive-array-configurations [max-number-drives]
+(defn- create-sorted-drive-array-configurations [{:keys [max-number-drives]}]
   (mapcat (fn [number-drives] (create-all-drive-array-configurations number-drives
                                                                      (valid-drive-arrays number-drives)))
           (range 2 (inc max-number-drives))))
 
-(def sizes (list lan-client-target-size
-                 lan-server-target-size
-                 lan-combined-target-size
-                 dmz-client-target-size
-                 dmz-server-target-size
-                 dmz-combined-target-size))
-
 (defn- calculate-dac-size [dac]
   (reduce (fn [r da] (+ r (:tib-50-percent da))) 0.00M dac))
 
-(defn- dac-right-size? [size dac]
+(defn- is-dac-right-size? [{:keys [target-size]} dac]
   (let [dac-size (calculate-dac-size dac)]
     (cond
-      (= size lan-client-target-size) (and (<= lan-client-target-size dac-size)
-                                           (<= dac-size (* 1.2M lan-client-target-size)))
-      (= size lan-server-target-size) (and (<= lan-server-target-size dac-size)
-                                           (<= dac-size (* 1.2M lan-server-target-size)))
-      (= size lan-combined-target-size) (and (<= lan-combined-target-size dac-size)
-                                             (<= dac-size (* 1.1M lan-combined-target-size)))
-      (= size dmz-client-target-size) (and (<= dmz-client-target-size dac-size)
-                                           (<= dac-size (* 6.0M dmz-client-target-size)))
-      (= size dmz-server-target-size) (and (<= dmz-server-target-size dac-size)
-                                           (<= dac-size (* 2.0M dmz-server-target-size)))
-      (= size dmz-combined-target-size) (and (<= dmz-combined-target-size dac-size)
-                                             (<= dac-size (* 2.0M dmz-combined-target-size)))
+      (= target-size lan-client-target-size) (and (<= lan-client-target-size dac-size)
+                                                  (<= dac-size (* 1.2M lan-client-target-size)))
+      (= target-size lan-server-target-size) (and (<= lan-server-target-size dac-size)
+                                                  (<= dac-size (* 1.2M lan-server-target-size)))
+      (= target-size lan-combined-target-size) (and (<= lan-combined-target-size dac-size)
+                                                    (<= dac-size (* 1.1M lan-combined-target-size)))
+      (= target-size dmz-client-target-size) (and (<= dmz-client-target-size dac-size)
+                                                  (<= dac-size (* 6.0M dmz-client-target-size)))
+      (= target-size dmz-server-target-size) (and (<= dmz-server-target-size dac-size)
+                                                  (<= dac-size (* 2.0M dmz-server-target-size)))
+      (= target-size dmz-combined-target-size) (and (<= dmz-combined-target-size dac-size)
+                                                    (<= dac-size (* 2.0M dmz-combined-target-size)))
       :else false)))
 
-(defn all-drive-array-configurations-validated-by-size [max-number-drives storage-size]
-  (filter #(dac-right-size? storage-size %) (create-sorted-drive-array-configurations max-number-drives)))
+(defn- number-of-two-point-five-drives [dac]
+  (reduce (fn [r {:keys [number-drives], {:keys [can-be-two-point-five-drive]} :drive}]
+            (+ r (if can-be-two-point-five-drive
+                   number-drives
+                   0))) 0 dac))
+
+(defn- does-dac-have-right-physical-drive-size-configuration? [{:keys [number-two-point-five-drives]} dac]
+  (if (< 0 number-two-point-five-drives)
+    (<= number-two-point-five-drives (number-of-two-point-five-drives dac))
+    true))
+
+(defn- is-dac-right? [scp-for-one-component dac]
+  (and (is-dac-right-size? scp-for-one-component dac)
+       (does-dac-have-right-physical-drive-size-configuration? scp-for-one-component dac)))
+
+(defn all-drive-array-configurations-validated-by-size [{:keys [target-size] :as scp-for-one-component}]
+  (filter #(is-dac-right? target-size %) (create-sorted-drive-array-configurations scp-for-one-component)))
 
 (defn- dac-cost [dac]
   (reduce (fn [r {:keys [number-drives], :keys [drive-cost] :drive}]
@@ -77,9 +100,8 @@
 
 (defn- find-cheapest-storage-configuration [scp]
   (let [all-storage-configurations (apply combo/cartesian-product
-                                          (map (fn ([[number-drives storage-size]]
-                                                    (all-drive-array-configurations-validated-by-size number-drives
-                                                                                                      storage-size))) scp))]
+                                          (map (fn [scp-for-one-component]
+                                                 (all-drive-array-configurations-validated-by-size scp-for-one-component)) scp))]
     (when (seq all-storage-configurations)
       (reduce (fn [[cheapest-cost-sc :as cheapest] sc] (let [cost-sc (calculate-storage-configuration-cost sc)]
                                                          (if (< cost-sc cheapest-cost-sc)
