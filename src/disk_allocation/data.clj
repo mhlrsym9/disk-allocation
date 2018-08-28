@@ -182,10 +182,3 @@
                             raid-one-z-five-drive-arrays
                             mirror-drive-arrays))
 
-(def all-drive-array-configurations
-  (map (fn [[br das]] {:br                              br
-                       :das                             das
-                       :all-drive-arrays-configurations (mapcat #(combo/selections das %)
-                                                                (range 1 br))})
-       (mapcat (fn [br] (map (fn [das] (list br das)) all-drive-arrays)) (range 1 12))))
-

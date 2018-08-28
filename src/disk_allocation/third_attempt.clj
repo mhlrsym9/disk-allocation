@@ -4,8 +4,6 @@
   (:require [clojure.math.combinatorics :as combo])
   (:import (disk_allocation.data Machine)))
 
-(def max-drives 16)
-
 (defn- max-number-drives-for-machine [{{:keys [two-point-five-drives three-point-five-drives]} :case,
                                        {:keys [additional-sata-connectors]}                    :hba,
                                        {:keys [number-sata-connections]}                       :mb}]

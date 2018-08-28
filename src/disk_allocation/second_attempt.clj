@@ -12,6 +12,30 @@
              (> 8.0M the-target-size) 10.0M
              :else (* 1.2M the-target-size))))
 
+(defn- extract-valid-drive-arrays [number-drives-needed]
+  (filter (fn [[{:keys [number-drives]}]]
+            (= 0 (mod number-drives-needed number-drives)))
+          all-drive-arrays))
+
+(defn- create-all-drive-array-configurations [br valid-drive-arrays]
+  (mapcat (fn [das]
+            (distinct (map (fn [dac] (sort-by :tib-50-percent dac))
+                           (combo/selections das br))))
+          valid-drive-arrays))
+
+(defn- create-sorted-drive-array-configurations [br das]
+  (mapcat (fn [br] (create-all-drive-array-configurations br das)) (range 1 (inc br))))
+
+(def all-drive-array-configurations
+  (map (fn [[br das]] {:br                              br
+                       :das                             das
+                       :all-drive-arrays-configurations (create-sorted-drive-array-configurations br das)})
+       (mapcat (fn [number-drives-needed]
+                 (map (fn [[{:keys [number-drives]} :as das]]
+                        (list (/ number-drives-needed number-drives) das))
+                      (extract-valid-drive-arrays number-drives-needed)))
+               (range 2 21))))
+
 (defn- maximum-target-size [the-target-size]
   (* 1.2M the-target-size))
 
