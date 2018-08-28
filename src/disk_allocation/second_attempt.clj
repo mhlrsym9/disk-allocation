@@ -26,15 +26,17 @@
 (defn- create-sorted-drive-array-configurations [br das]
   (mapcat (fn [br] (create-all-drive-array-configurations br das)) (range 1 (inc br))))
 
-(def all-drive-array-configurations
+(defn- generate-all-drive-array-configurations []
   (map (fn [[br das]] {:br                              br
                        :das                             das
-                       :all-drive-arrays-configurations (create-sorted-drive-array-configurations br das)})
+                       :all-drive-arrays-configurations (create-sorted-drive-array-configurations br (list das))})
        (mapcat (fn [number-drives-needed]
                  (map (fn [[{:keys [number-drives]} :as das]]
                         (list (/ number-drives-needed number-drives) das))
                       (extract-valid-drive-arrays number-drives-needed)))
                (range 2 21))))
+
+(def all-drive-array-configurations (generate-all-drive-array-configurations))
 
 (defn- maximum-target-size [the-target-size]
   (* 1.2M the-target-size))
