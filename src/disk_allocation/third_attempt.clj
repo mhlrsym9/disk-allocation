@@ -6,17 +6,19 @@
 
 (def max-drives 16)
 
-(defn- max-number-drives-for-machine [{:keys [case hba mb]}]
-  (let [number-two-point-five-drives (:two-point-five-drives case)
-        max-number-drives-in-case (+ (:three-point-five-drives case)
-                                     number-two-point-five-drives)
-        max-number-drives-in-mb (+ (:number-sata-connections mb)
-                                   (:additional-sata-connectors hba))]
+(defn- max-number-drives-for-machine [{{:keys [two-point-five-drives three-point-five-drives]} :case,
+                                       {:keys [additional-sata-connectors]}                    :hba,
+                                       {:keys [number-sata-connections]}                       :mb}]
+  (let [max-number-drives-in-case (+ three-point-five-drives two-point-five-drives)
+        max-number-drives-in-mb (+ number-sata-connections
+                                   additional-sata-connectors)]
     (if (<= max-number-drives-in-case max-number-drives-in-mb)
-      {:max-number-drives max-number-drives-in-case :number-two-point-five-drives number-two-point-five-drives}
-      {:max-number-drives max-number-drives-in-mb :number-two-point-five-drives (max 0 (- number-two-point-five-drives
-                                                                                              (- max-number-drives-in-case
-                                                                                                 max-number-drives-in-mb)))})))
+      {:max-number-drives            max-number-drives-in-case
+       :number-two-point-five-drives two-point-five-drives}
+      {:max-number-drives            max-number-drives-in-mb
+       :number-two-point-five-drives (max 0 (- number-two-point-five-drives
+                                               (- max-number-drives-in-case
+                                                  max-number-drives-in-mb)))})))
 
 (defn- target-size-for-machine [{:keys [target-size]}]
   {:target-size (first target-size)})
@@ -93,17 +95,31 @@
 (defn- number-drives-in-storage-configuration [drive sc]
   (reduce (fn [r dac] (+ r (number-drives-in-dac drive dac))) sc))
 
-(defn- calculate-storage-configuration-cost [sc]
-  (- (reduce (fn [r dac] (+ r (dac-cost dac))) sc)
-     (* (:drive-cost four-tb-drive) (min (number-drives-in-storage-configuration four-tb-drive sc) 9))
-     (* (:drive-cost one-tb-drive) (min (number-drives-in-storage-configuration one-tb-drive sc) 4))))
+(defn- total-number-drives-in-dac [dac]
+  (reduce (fn [r da] (+ r (:number-drives da))) dac))
+
+(defn- calculate-storage-configuration-cost [sc scp]
+  (let [number-one-tb-two-point-five-drives-needed (apply + (map (fn [dac {:keys [max-number-drives number-two-point-five-drives]}]
+                                                                   (let [number-drives (total-number-drives-in-dac dac)]
+                                                                     (max 0 (- number-drives
+                                                                               (- max-number-drives
+                                                                                  number-two-point-five-drives)))))
+                                                                 sc scp))
+        number-one-tb-drives-needed (number-drives-in-storage-configuration one-tb-drive sc)
+        number-one-tb-three-point-five-drives-needed (- number-one-tb-drives-needed number-one-tb-two-point-five-drives-needed)
+        number-one-tb-two-point-five-drives-used-in-dac (min number-one-tb-two-point-five-drives-needed 2)
+        number-additional-one-tb-two-point-five-drives (- 2 number-one-tb-two-point-five-drives-used-in-dac)]
+    (- (reduce (fn [r dac] (+ r (dac-cost dac))) sc)
+       (* (:drive-cost four-tb-drive) (min (number-drives-in-storage-configuration four-tb-drive sc) 9))
+       (* (:drive-cost one-tb-drive) (min number-one-tb-three-point-five-drives-needed (+ 2 number-additional-one-tb-two-point-five-drives)))
+       (* (:drive-cost one-tb-drive) (min number-one-tb-two-point-five-drives-needed 2)))))
 
 (defn- find-cheapest-storage-configuration [scp]
   (let [all-storage-configurations (apply combo/cartesian-product
                                           (map (fn [scp-for-one-component]
                                                  (all-drive-array-configurations-validated-by-size scp-for-one-component)) scp))]
     (when (seq all-storage-configurations)
-      (reduce (fn [[cheapest-cost-sc :as cheapest] sc] (let [cost-sc (calculate-storage-configuration-cost sc)]
+      (reduce (fn [[cheapest-cost-sc :as cheapest] sc] (let [cost-sc (calculate-storage-configuration-cost sc scp)]
                                                          (if (< cost-sc cheapest-cost-sc)
                                                            (list cost-sc sc)
                                                            cheapest)))
@@ -204,12 +220,10 @@
 
         cheapest-machine-configuration (find-cheapest-machine-configuration smc)]
     {:storage-configuration      cheapest-storage-configuration
-     :storage-configuration-cost (calculate-storage-configuration-cost cheapest-storage-configuration)
+     :storage-configuration-cost (calculate-storage-configuration-cost cheapest-storage-configuration
+                                                                       storage-configuration-pattern)
      :machine-configuration      cheapest-machine-configuration
      :machine-configuration-cost (calculate-machine-configuration-cost cheapest-machine-configuration)}))
-
-(defn- total-number-drives-in-dac [dac]
-  (reduce (fn [r da] (+ r (:number-drives da))) dac))
 
 (defn- total-number-drives-in-storage-configuration [sc]
   (reduce (fn [r dac] (+ r (total-number-drives-in-dac dac))) sc))
