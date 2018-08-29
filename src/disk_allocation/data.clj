@@ -14,13 +14,13 @@
 (def hba-9211-8i (->Hba 8 78.00M "9211-8i"))
 (def hba-none (->Hba 0 0.00M "no hba"))
 
-(defrecord Motherboard [number-sata-connections cost])
-(def msi-x99a-tomahawk (->Motherboard 10 (+ 104.99M 235.99M))) ; 16GB ECC memory
-(def augmented-msi-x99a-tomahawk (->Motherboard 10 (+ 104.99M 235.99M 235.99M))) ; 32GB ECC memory
-(def asrock-x99m (->Motherboard 10 (+ 199.99M 53.11M 53.11M))) ; DeepServer3
-(def ga-9sisl (->Motherboard 6 (- (+ 233.99M 98.00M) (:cost atom-c2750)))) ; DeepDivide
-(def supermicro-x11ssh (->Motherboard 8 (+ 198.99M 117.99M))) ; Motherboard plus 8GB ECC memory
-(def augmented-supermicro-x11ssh (->Motherboard 8 (+ 198.99M 235.99M))) ; Motherboard plus 16GB ECC memory
+(defrecord Motherboard [number-sata-connections cost name])
+(def msi-x99a-tomahawk (->Motherboard 10 (+ 104.99M 235.99M) "MSI X99A Tomahawk")) ; 16GB ECC memory
+(def augmented-msi-x99a-tomahawk (->Motherboard 10 (+ 104.99M 235.99M 235.99M) "MSI X99A Tomahawk w/ extra memory")) ; 32GB ECC memory
+(def asrock-x99m (->Motherboard 10 (+ 199.99M 53.11M 53.11M) "ASRock X99M")) ; DeepServer3
+(def ga-9sisl (->Motherboard 6 (- (+ 233.99M 98.00M) (:cost atom-c2750)) "GA-9SISL")) ; DeepDivide
+(def supermicro-x11ssh (->Motherboard 8 (+ 198.99M 117.99M) "SuperMicro X11SSH")) ; Motherboard plus 8GB ECC memory
+(def augmented-supermicro-x11ssh (->Motherboard 8 (+ 198.99M 235.99M) "SuperMicro X11SSH w/ extra memory")) ; Motherboard plus 16GB ECC memory
 
 (defrecord Case [three-point-five-drives two-point-five-drives cost name])
 (def one-r5 (->Case 11 2 123.80M "r5"))

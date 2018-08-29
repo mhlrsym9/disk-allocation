@@ -24,7 +24,7 @@
           valid-drive-arrays))
 
 (defn- create-sorted-drive-array-configurations [br das]
-  (mapcat (fn [br] (create-all-drive-array-configurations br das)) (range 1 (inc br))))
+  (mapcat (fn [inner-br] (create-all-drive-array-configurations inner-br das)) (range 1 (inc br))))
 
 (defn- generate-all-drive-array-configurations []
   (map (fn [[br das]] {:br                              br
@@ -38,25 +38,21 @@
 
 (def all-drive-array-configurations (generate-all-drive-array-configurations))
 
-(defn- maximum-target-size [the-target-size]
-  (* 1.2M the-target-size))
-
-(defn- generate-all-valid-machines [{:keys [case mb hba], [the-target-size] :target-size} percent-key drive-arrays]
+(defn- generate-all-valid-machines [{:keys [case mb hba], [the-target-size] :target-size :as machine} percent-key drive-arrays]
   (let [maximum-number-of-drives-in-case (+ (:three-point-five-drives case)
                                             (:two-point-five-drives case))
         maximum-number-of-drives-on-mb (+ (:number-sata-connections mb)
                                           (:additional-sata-connectors hba))
-        block-range (inc (int (Math/floor (/ (min maximum-number-of-drives-in-case
-                                                  maximum-number-of-drives-on-mb)
-                                             (:number-drives (first drive-arrays))))))
+        block-range (int (Math/floor (/ (min maximum-number-of-drives-in-case
+                                             maximum-number-of-drives-on-mb)
+                                        (:number-drives (first drive-arrays)))))
         all-dacs (:all-drive-arrays-configurations (first (filter (fn [{:keys [br]}] (= block-range br))
                                                                   (filter (fn [{:keys [das]}] (= drive-arrays das))
                                                                           all-drive-array-configurations))))
-        configurations-with-right-physical-drive-sizes (filter (partial utils/is-right-physical-drive-size case)
-                                                               all-dacs)
-        all-valid-machines (filter #(let [drive-array-configuration-size (reduce (fn [r v] (+ r (percent-key v))) 0 %)]
-                                      (and (<= the-target-size drive-array-configuration-size)
-                                           (>= (maximum-target-size the-target-size) drive-array-configuration-size)))
+        is-right-size-fnc (partial utils/does-dac-have-right-physical-drive-size-configuration?
+                                   (utils/generate-machine-configuration-pattern machine))
+        configurations-with-right-physical-drive-sizes (filter is-right-size-fnc all-dacs)
+        all-valid-machines (filter #(utils/is-dac-right-size? {:target-size the-target-size} % percent-key)
                                    configurations-with-right-physical-drive-sizes)]
     all-valid-machines))
 
@@ -73,19 +69,6 @@
      (:cost (:cpu machine))
      (:cost (:hba machine))))
 
-(def drive-adjustments (list (list one-tb-drive 4)
-                             (list four-tb-drive 9)))
-
-(defn- count-matching-drives-in-system-configuration [vsmc {:keys [drive-size]}]
-  (count (filter (fn [ds] (= drive-size ds))
-                 (mapcat (fn [{:keys [number-drives], {:keys [drive-size]} :drive}]
-                           (repeat number-drives drive-size))
-                         (mapcat :drive-array-configuration vsmc)))))
-
-(defn- adjust-cost-for-matching-drives-in-system-configuration [vsmc {:keys [drive-cost] :as drive} held]
-  (* drive-cost
-     (min held (count-matching-drives-in-system-configuration vsmc drive))))
-
 (defn- storage-machine-total-cost [{:keys [drive-array-configuration storage-machine]}]
   {:drive-cost (reduce (fn [r v] (+ r (drive-array-total-cost v))) 0.00M drive-array-configuration)
    :machine-cost (machine-total-cost storage-machine)})
@@ -96,9 +79,9 @@
             (map (fn [vsmc] (let [{:keys [drive-cost machine-cost]} (reduce (fn [r v] (merge-with + r (storage-machine-total-cost v)))
                                                                             {:drive-cost 0.00M :machine-cost 0.00M}
                                                                             vsmc)
-                                  drive-adjustment (apply + (map (fn [[drive held]]
-                                                                   (adjust-cost-for-matching-drives-in-system-configuration vsmc drive held))
-                                                                 drive-adjustments))]
+                                  drive-adjustment (utils/calculate-drive-adjustment
+                                                     (map :drive-array-configuration vsmc)
+                                                     (utils/generate-storage-machine-configuration-pattern smc))]
                               {:vsmc       vsmc
                                :cost       (- (+ drive-cost machine-cost) drive-adjustment)
                                :drive-cost (- drive-cost drive-adjustment)}))
@@ -151,7 +134,7 @@
              (- (:cost augmented-msi-x99a-tomahawk) (:cost msi-x99a-tomahawk))
              :else 0.00M))))
 
-(defn- storage-configuration-machine-count [sc]
+(defn- storage-configuration-machine-count [_]
   2)
 
 (defn- extract-machines-of-type [type machines]

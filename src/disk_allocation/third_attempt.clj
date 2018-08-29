@@ -4,26 +4,6 @@
   (:require [clojure.math.combinatorics :as combo])
   (:import (disk_allocation.data Machine)))
 
-(defn- max-number-drives-for-machine [{{:keys [two-point-five-drives three-point-five-drives]} :case,
-                                       {:keys [additional-sata-connectors]}                    :hba,
-                                       {:keys [number-sata-connections]}                       :mb}]
-  (let [max-number-drives-in-case (+ three-point-five-drives two-point-five-drives)
-        max-number-drives-in-mb (+ number-sata-connections
-                                   additional-sata-connectors)]
-    (if (<= max-number-drives-in-case max-number-drives-in-mb)
-      {:max-number-drives            max-number-drives-in-case
-       :number-two-point-five-drives two-point-five-drives}
-      {:max-number-drives            max-number-drives-in-mb
-       :number-two-point-five-drives (max 0 (- two-point-five-drives
-                                               (- max-number-drives-in-case
-                                                  max-number-drives-in-mb)))})))
-
-(defn- target-size-for-machine [{:keys [target-size]}]
-  {:target-size (first target-size)})
-
-(defn- generate-storage-configuration-pattern [smc]
-  (map (fn [mc] (merge (max-number-drives-for-machine mc) (target-size-for-machine mc))) smc))
-
 (defn- extract-valid-drive-arrays [number-drives-needed]
   (filter (fn [[{:keys [number-drives]}]]
             (= 0 (mod number-drives-needed number-drives)))
@@ -40,43 +20,12 @@
                                                                      (extract-valid-drive-arrays number-drives)))
           (range 2 (inc max-number-drives))))
 
-(defn- calculate-dac-size [dac]
-  (reduce (fn [r da] (+ r (:tib-50-percent da))) 0.00M dac))
+(defn- is-dac-right? [scp-for-one-component dac percent-key]
+  (and (utils/is-dac-right-size? scp-for-one-component dac percent-key)
+       (utils/does-dac-have-right-physical-drive-size-configuration? scp-for-one-component dac)))
 
-(defn- is-dac-right-size? [{:keys [target-size]} dac]
-  (let [dac-size (calculate-dac-size dac)]
-    (cond
-      (= target-size lan-client-target-size) (and (<= lan-client-target-size dac-size)
-                                                  (<= dac-size (* 1.2M lan-client-target-size)))
-      (= target-size lan-server-target-size) (and (<= lan-server-target-size dac-size)
-                                                  (<= dac-size (* 1.2M lan-server-target-size)))
-      (= target-size lan-combined-target-size) (and (<= lan-combined-target-size dac-size)
-                                                    (<= dac-size (* 1.1M lan-combined-target-size)))
-      (= target-size dmz-client-target-size) (and (<= dmz-client-target-size dac-size)
-                                                  (<= dac-size (* 6.0M dmz-client-target-size)))
-      (= target-size dmz-server-target-size) (and (<= dmz-server-target-size dac-size)
-                                                  (<= dac-size (* 2.0M dmz-server-target-size)))
-      (= target-size dmz-combined-target-size) (and (<= dmz-combined-target-size dac-size)
-                                                    (<= dac-size (* 2.0M dmz-combined-target-size)))
-      :else false)))
-
-(defn- number-of-two-point-five-drives [dac]
-  (reduce (fn [r {:keys [number-drives], {:keys [can-be-two-point-five-drive]} :drive}]
-            (+ r (if can-be-two-point-five-drive
-                   number-drives
-                   0))) 0 dac))
-
-(defn- does-dac-have-right-physical-drive-size-configuration? [{:keys [number-two-point-five-drives]} dac]
-  (if (< 0 number-two-point-five-drives)
-    (<= number-two-point-five-drives (number-of-two-point-five-drives dac))
-    true))
-
-(defn- is-dac-right? [scp-for-one-component dac]
-  (and (is-dac-right-size? scp-for-one-component dac)
-       (does-dac-have-right-physical-drive-size-configuration? scp-for-one-component dac)))
-
-(defn all-drive-array-configurations-validated-by-size [scp-for-one-component]
-  (filter #(is-dac-right? scp-for-one-component %)
+(defn- all-drive-array-configurations-validated-by-size [scp-for-one-component percent-key]
+  (filter #(is-dac-right? scp-for-one-component % percent-key)
           (create-sorted-drive-array-configurations scp-for-one-component)))
 
 (defn- dac-cost [dac]
@@ -85,37 +34,14 @@
           0.00M
           dac))
 
-(defn- number-drives-in-dac [{:keys [drive-size]} dac]
-  (reduce (fn [r da] (+ r (if (= drive-size (:drive-size (:drive da)))
-                            (:number-drives da)
-                            0))) 0 dac))
-
-(defn- number-drives-in-storage-configuration [drive sc]
-  (reduce (fn [r dac] (+ r (number-drives-in-dac drive dac))) 0 sc))
-
-(defn- total-number-drives-in-dac [dac]
-  (reduce (fn [r {:keys [number-drives]}] (+ r number-drives)) 0 dac))
-
 (defn- calculate-storage-configuration-cost [sc scp]
-  (let [number-one-tb-two-point-five-drives-needed (apply + (map (fn [dac {:keys [max-number-drives number-two-point-five-drives]}]
-                                                                   (let [number-drives (total-number-drives-in-dac dac)]
-                                                                     (max 0 (- number-drives
-                                                                               (- max-number-drives
-                                                                                  number-two-point-five-drives)))))
-                                                                 sc scp))
-        number-one-tb-drives-needed (number-drives-in-storage-configuration one-tb-drive sc)
-        number-one-tb-three-point-five-drives-needed (- number-one-tb-drives-needed number-one-tb-two-point-five-drives-needed)
-        number-one-tb-two-point-five-drives-used-in-dac (min number-one-tb-two-point-five-drives-needed 2)
-        number-additional-one-tb-two-point-five-drives (- 2 number-one-tb-two-point-five-drives-used-in-dac)]
-    (- (reduce (fn [r dac] (+ r (dac-cost dac))) 0.00M sc)
-       (* (:drive-cost four-tb-drive) (min (number-drives-in-storage-configuration four-tb-drive sc) 9))
-       (* (:drive-cost one-tb-drive) (min number-one-tb-three-point-five-drives-needed (+ 2 number-additional-one-tb-two-point-five-drives)))
-       (* (:drive-cost one-tb-drive) (min number-one-tb-two-point-five-drives-needed 2)))))
+  (- (reduce (fn [r dac] (+ r (dac-cost dac))) 0.00M sc)
+     (utils/calculate-drive-adjustment sc scp)))
 
 (defn- find-cheapest-storage-configuration [scp]
   (let [all-storage-configurations (apply combo/cartesian-product
                                           (map (fn [scp-for-one-component]
-                                                 (all-drive-array-configurations-validated-by-size scp-for-one-component)) scp))]
+                                                 (all-drive-array-configurations-validated-by-size scp-for-one-component :tib-50-percent)) scp))]
     (when (seq all-storage-configurations)
       (second (reduce (fn [[cheapest-cost-sc :as cheapest] sc] (let [cost-sc (calculate-storage-configuration-cost sc scp)]
                                                                  (if (< cost-sc cheapest-cost-sc)
@@ -217,7 +143,7 @@
                       (rest all-valid-machine-configurations))))))
 
 (defn- find-cheapest-storage-system-for-this-storage-machine-configuration [smc]
-  (let [storage-configuration-pattern (generate-storage-configuration-pattern smc)
+  (let [storage-configuration-pattern (utils/generate-storage-machine-configuration-pattern smc)
         cheapest-storage-configuration (find-cheapest-storage-configuration-memo storage-configuration-pattern)
 
         cheapest-machine-configuration (find-cheapest-machine-configuration smc)
@@ -230,7 +156,7 @@
     result))
 
 (defn- total-number-drives-in-storage-configuration [sc]
-  (reduce (fn [r dac] (+ r (total-number-drives-in-dac dac))) 0 sc))
+  (reduce (fn [r dac] (+ r (utils/total-number-drives-in-dac dac))) 0 sc))
 
 (defn- find-cheapest-storage-system [level storage-systems]
   (let [cheapest-storage-system (reduce (fn [{r-sc-cost :storage-configuration-cost, r-sc :storage-configuration,
