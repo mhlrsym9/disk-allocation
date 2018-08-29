@@ -66,7 +66,7 @@
        (generate-machines (combo/cartesian-product (list one-r5)
                                                    (list augmented-msi-x99a-tomahawk)
                                                    (list e5-2603-v3)
-                                                   (list nil hba-9211-4i hba-9211-8i)
+                                                   (list hba-none hba-9211-4i hba-9211-8i)
                                                    (list (list lan-combined-target-size dmz-combined-target-size))
                                                    (list :lan-and-dmz)))))
 

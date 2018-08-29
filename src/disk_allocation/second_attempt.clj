@@ -50,9 +50,9 @@
                                                                   (filter (fn [{:keys [das]}] (= drive-arrays das))
                                                                           all-drive-array-configurations))))
         is-right-size-fnc (partial utils/does-dac-have-right-physical-drive-size-configuration?
-                                   (utils/generate-machine-configuration-pattern machine))
+                                   (utils/generate-machine-configuration-pattern-v2 machine))
         configurations-with-right-physical-drive-sizes (filter is-right-size-fnc all-dacs)
-        all-valid-machines (filter #(utils/is-dac-right-size? {:target-size the-target-size} % percent-key)
+        all-valid-machines (filter #(utils/is-dac-right-size? the-target-size % percent-key)
                                    configurations-with-right-physical-drive-sizes)]
     all-valid-machines))
 
@@ -81,7 +81,7 @@
                                                                             vsmc)
                                   drive-adjustment (utils/calculate-drive-adjustment
                                                      (map :drive-array-configuration vsmc)
-                                                     (utils/generate-storage-machine-configuration-pattern smc))]
+                                                     (utils/generate-storage-machine-configuration-pattern-v2 smc))]
                               {:vsmc       vsmc
                                :cost       (- (+ drive-cost machine-cost) drive-adjustment)
                                :drive-cost (- drive-cost drive-adjustment)}))
@@ -128,11 +128,10 @@
      ; Adjust for extra memory in augmented machine.
      (let [number-msi (count-matching-items-in-system-configuration sc msi-x99a-tomahawk does-mb-match?)
            number-augmented-msi (count-matching-items-in-system-configuration sc augmented-msi-x99a-tomahawk does-mb-match?)]
-       (cond (< 0 number-msi)
-             (:cost msi-x99a-tomahawk)
-             (< 0 number-augmented-msi)
-             (- (:cost augmented-msi-x99a-tomahawk) (:cost msi-x99a-tomahawk))
-             :else 0.00M))))
+       (if (or (< 0 number-msi)
+               (< 0 number-augmented-msi))
+         (:cost msi-x99a-tomahawk)
+         0.00M))))
 
 (defn- storage-configuration-machine-count [_]
   2)
@@ -178,12 +177,11 @@
       (println (str "No systems at all at " level " level!")))
     cheapest-system))
 
-(defn- generate-all-priced-valid-storage-configurations [idx smc]
+(defn- generate-all-priced-valid-storage-configurations [smc]
   (let [all-valid-storage-machine-configurations (generate-all-valid-storage-machine-configurations smc)
         all-system-configurations  (combo/cartesian-product all-valid-storage-machine-configurations
                                                            all-lan-servers
                                                            all-dmz-servers)]
-    (println (str "Count of " idx " is " (count all-valid-storage-machine-configurations)))
     (map (fn [[{:keys [vsmc drive-cost]} lan dmz :as sc]]
            {:cost                 (storage-configuration-total-cost sc)
             :drive-cost           drive-cost
@@ -192,7 +190,7 @@
 
 (defn- find-the-cheapest-system-for-this-storage-machine-configuration-list [idx smcl]
   (let [futures-list (doall (map-indexed #(future ((comp (partial find-cheapest-system (str "apvsc " %1))
-                                                         generate-all-priced-valid-storage-configurations) %1 %2))
+                                                         generate-all-priced-valid-storage-configurations) %2))
                                          smcl))
         cheapest-systems (filter identity (map deref futures-list))]
     (find-cheapest-system (str "smcl " idx) cheapest-systems)))

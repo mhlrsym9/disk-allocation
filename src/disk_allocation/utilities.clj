@@ -13,7 +13,7 @@
 (defn- calculate-dac-size [dac percent-key]
   (reduce (fn [r da] (+ r (percent-key da))) 0.0M dac))
 
-(defn is-dac-right-size? [{:keys [target-size]} dac percent-key]
+(defn is-dac-right-size? [target-size dac percent-key]
   (let [dac-size (calculate-dac-size dac percent-key)]
     (cond
       (= target-size lan-client-target-size) (and (<= lan-client-target-size dac-size)
@@ -28,7 +28,7 @@
                                                   (<= dac-size (* 2.0M dmz-server-target-size)))
       (= target-size dmz-combined-target-size) (and (<= dmz-combined-target-size dac-size)
                                                     (<= dac-size (* 2.0M dmz-combined-target-size)))
-      :else false)))
+      :else (<= target-size dac-size))))
 
 (defn- number-of-two-point-five-drives-in-dac [dac]
   (reduce (fn [r {:keys [number-drives], {:keys [can-be-two-point-five-drive]} :drive}]
@@ -63,13 +63,20 @@
 (defn- target-size-for-machine [{:keys [target-size]}]
   {:target-size (first target-size)})
 
-(defn generate-machine-configuration-pattern [mc]
+(defn generate-machine-configuration-pattern-v2 [mc]
   (merge (max-number-drives-for-machine mc) (target-size-for-machine mc)))
 
-(defn generate-storage-machine-configuration-pattern [smc]
-  (map generate-machine-configuration-pattern smc))
+(defn generate-storage-machine-configuration-pattern-v2 [smc]
+  (map generate-machine-configuration-pattern-v2 smc))
 
+(defn- target-size-for-machine-v3 [{:keys [target-size]}]
+  {:target-size target-size})
 
+(defn generate-machine-configuration-pattern-v3 [mc]
+  (merge (max-number-drives-for-machine mc) (target-size-for-machine-v3 mc)))
+
+(defn generate-storage-machine-configuration-pattern-v3 [smc]
+  (map generate-machine-configuration-pattern-v3 smc))
 
 (defn- number-drives-in-dac [{:keys [drive-size]} dac]
   (reduce (fn [r da] (+ r (if (= drive-size (:drive-size (:drive da)))
