@@ -190,20 +190,20 @@
             :system-configuration (list vsmc lan dmz)})
          (filter keep-good-case-configurations all-system-configurations))))
 
-(comment (defn- find-the-cheapest-system-for-this-storage-machine-configuration-list [idx smcl]
-           (let [futures-list (doall (map-indexed #(future ((comp (partial find-cheapest-system (str "apvsc " %1))
-                                                                  generate-all-priced-valid-storage-configurations) %1 %2))
-                                                  smcl))
-                 cheapest-systems (filter identity (map deref futures-list))]
-             (find-cheapest-system (str "smcl " idx) cheapest-systems))))
-
 (defn- find-the-cheapest-system-for-this-storage-machine-configuration-list [idx smcl]
-  (let [cheapest-systems (filter identity (map-indexed #((comp (partial find-cheapest-system (str "apvsc " %1))
-                                                               generate-all-priced-valid-storage-configurations) %1 %2)
-                                                       smcl))
-        cheapest-system (find-cheapest-system (str "smcl " idx) cheapest-systems)]
-    (println (str "Drive cost is " (:drive-cost cheapest-system)))
-    cheapest-system))
+  (let [futures-list (doall (map-indexed #(future ((comp (partial find-cheapest-system (str "apvsc " %1))
+                                                         generate-all-priced-valid-storage-configurations) %1 %2))
+                                         smcl))
+        cheapest-systems (filter identity (map deref futures-list))]
+    (find-cheapest-system (str "smcl " idx) cheapest-systems)))
+
+(comment (defn- find-the-cheapest-system-for-this-storage-machine-configuration-list [idx smcl]
+           (let [cheapest-systems (filter identity (map-indexed #((comp (partial find-cheapest-system (str "apvsc " %1))
+                                                                        generate-all-priced-valid-storage-configurations) %1 %2)
+                                                                smcl))
+                 cheapest-system (find-cheapest-system (str "smcl " idx) cheapest-systems)]
+             (println (str "Drive cost is " (:drive-cost cheapest-system)))
+             cheapest-system)))
 
 (defn- find-the-cheapest-system []
   (find-cheapest-system "lasmcl" (filter identity (map-indexed #((comp (partial find-cheapest-system (str "tlsmcl " %1))
