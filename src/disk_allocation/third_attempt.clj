@@ -198,14 +198,23 @@
                             (first all-valid-machine-configurations))
                       (rest all-valid-machine-configurations))))))
 
-(defn- find-cheapest-storage-system-for-this-storage-machine-configuration [smc]
-  (let [storage-configuration-pattern (utils/generate-storage-machine-configuration-pattern-v3 smc)
-        cheapest-storage-configuration (find-cheapest-storage-configuration-memo storage-configuration-pattern)
+(comment (defn- find-cheapest-storage-system-for-this-storage-machine-configuration [smc]
+           (let [storage-configuration-pattern (utils/generate-storage-machine-configuration-pattern-v3 smc)
+                 cheapest-storage-configuration (find-cheapest-storage-configuration-memo storage-configuration-pattern)
 
-        cheapest-machine-configuration (find-cheapest-machine-configuration smc)
-        result {:storage-configuration      cheapest-storage-configuration
-                :storage-configuration-cost (calculate-storage-configuration-cost cheapest-storage-configuration
-                                                                                  storage-configuration-pattern)
+                 cheapest-machine-configuration (find-cheapest-machine-configuration smc)
+                 result {:storage-configuration      cheapest-storage-configuration
+                         :storage-configuration-cost (calculate-storage-configuration-cost cheapest-storage-configuration
+                                                                                           storage-configuration-pattern)
+                         :machine-configuration      cheapest-machine-configuration
+                         :machine-configuration-cost (calculate-machine-configuration-cost cheapest-machine-configuration)}]
+             (println (str "Cheapest cost of this smc is " (+ (:storage-configuration-cost result) (:machine-configuration-cost result))))
+             result)))
+
+(defn- find-cheapest-storage-system-for-this-storage-machine-configuration [scp csc smc]
+  (let [cheapest-machine-configuration (find-cheapest-machine-configuration smc)
+        result {:storage-configuration      csc
+                :storage-configuration-cost (calculate-storage-configuration-cost csc scp)
                 :machine-configuration      cheapest-machine-configuration
                 :machine-configuration-cost (calculate-machine-configuration-cost cheapest-machine-configuration)}]
     (println (str "Cheapest cost of this smc is " (+ (:storage-configuration-cost result) (:machine-configuration-cost result))))
@@ -259,8 +268,22 @@
                                                                  (:machine-configuration-cost cheapest-storage-system))))
     cheapest-storage-system))
 
+(comment (defn- find-the-cheapest-system-for-this-storage-machine-configuration-list [smcl]
+           (let [cheapest-storage-systems (filter identity (map find-cheapest-storage-system-for-this-storage-machine-configuration smcl))]
+             (when (seq cheapest-storage-systems)
+               (find-cheapest-storage-system "smcl" cheapest-storage-systems)))))
+
 (defn- find-the-cheapest-system-for-this-storage-machine-configuration-list [smcl]
-  (let [cheapest-storage-systems (filter identity (map find-cheapest-storage-system-for-this-storage-machine-configuration smcl))]
+  (let [all-needed-storage-configuration-patterns (apply hash-set (map utils/generate-storage-machine-configuration-pattern-v3 smcl))
+        futures-list (doall (map (fn [scp] (future (find-cheapest-storage-configuration scp))) all-needed-storage-configuration-patterns))
+        cheapest-storage-configurations (into (hash-map)
+                                              (map (fn [scp f] {scp (deref f)})
+                                                   all-needed-storage-configuration-patterns
+                                                   futures-list))
+        cheapest-fnc (fn [smc] (let [scp (utils/generate-storage-machine-configuration-pattern-v3 smc)
+                                     csc (get cheapest-storage-configurations scp)]
+                                 (find-cheapest-storage-system-for-this-storage-machine-configuration scp csc smc)))
+        cheapest-storage-systems (filter identity (map cheapest-fnc smcl))]
     (when (seq cheapest-storage-systems)
       (find-cheapest-storage-system "smcl" cheapest-storage-systems))))
 
