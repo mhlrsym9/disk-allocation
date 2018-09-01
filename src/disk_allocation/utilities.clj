@@ -72,8 +72,13 @@
 (defn- target-size-for-machine-v3 [{:keys [target-size]}]
   {:target-size target-size})
 
+(defn- all-drive-arrays-for-machine-v3 [{:keys [all-drive-arrays]}]
+  {:all-drive-arrays all-drive-arrays})
+
 (defn generate-machine-configuration-pattern-v3 [mc]
-  (merge (max-number-drives-for-machine mc) (target-size-for-machine-v3 mc)))
+  (merge (max-number-drives-for-machine mc)
+         (target-size-for-machine-v3 mc)
+         (all-drive-arrays-for-machine-v3 mc)))
 
 (defn generate-storage-machine-configuration-pattern-v3 [smc]
   (map generate-machine-configuration-pattern-v3 smc))

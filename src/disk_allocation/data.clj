@@ -28,6 +28,7 @@
 (def one-phanteks-itx (->Case 2 3 89.99M "Phanteks ITX"))
 (def one-define-mini (->Case 9 0 (* 2 (+ 123.52M 39.97M)) "Mini"))
 (def one-silencio (->Case 4 4 79.99M "Silencio"))
+(def one-norco (->Case 16 0 331.41M "Norco"))
 
 (def one-tb-to-tib 0.909495M)
 (def lan-server-target-size (* 9.128M 2.5M one-tb-to-tib))
@@ -38,82 +39,48 @@
 (def dmz-client-target-size (* 0.48M 1.5M one-tb-to-tib))
 (def dmz-combined-target-size (+ dmz-server-target-size dmz-client-target-size))
 
-(defrecord Machine [^Case case ^Motherboard mb ^Cpu cpu ^Hba hba target-size type])
+(defrecord Machine [^Case case ^Motherboard mb ^Cpu cpu ^Hba hba target-size type all-drive-arrays])
 
 (defn- generate-machines [all-components]
-  (map (fn [[case mb cpu hba size type]] (->Machine case mb cpu hba size type)) all-components))
+  (map (fn [[case mb cpu hba size type all-drive-arrays]]
+         (->Machine case mb cpu hba size type all-drive-arrays))
+       all-components))
 
 (def list-of-lan-cases (list one-r5 one-xl one-define-mini one-silencio))
-(comment (def list-of-lan-cases (list one-r5)))
 (def all-lan-servers (generate-machines (combo/cartesian-product list-of-lan-cases
                                                                  (list asrock-x99m)
                                                                  (list e5-2603-v4)
                                                                  (list hba-none)
                                                                  (list nil)
-                                                                 (list :lan))))
+                                                                 (list :lan)
+                                                                 (list nil))))
 
 (def list-of-dmz-cases (list one-r5 one-xl one-define-mini one-silencio one-phanteks-itx))
-(comment (def list-of-dmz-cases (list one-phanteks-itx)))
 (def all-dmz-servers (generate-machines (combo/cartesian-product list-of-dmz-cases
                                                                  (list ga-9sisl)
                                                                  (list atom-c2750)
                                                                  (list hba-none)
                                                                  (list nil)
-                                                                 (list :dmz))))
+                                                                 (list :dmz)
+                                                                 (list nil))))
 
-(def all-storage-in-one-machine
-  (map list
-       (generate-machines (combo/cartesian-product (list one-r5)
-                                                   (list augmented-msi-x99a-tomahawk)
-                                                   (list e5-2603-v3)
-                                                   (list hba-none hba-9211-4i hba-9211-8i)
-                                                   (list (list lan-combined-target-size dmz-combined-target-size))
-                                                   (list :lan-and-dmz)))))
-
-(defn- big-storage-box [size-list machine-type]
+(defn- big-storage-box [size-list machine-type all-drive-arrays]
   (generate-machines (combo/cartesian-product (list one-r5 one-xl)
                                               (list msi-x99a-tomahawk)
                                               (list e5-2603-v3)
                                               (list hba-none hba-9211-4i hba-9211-8i)
                                               size-list
-                                              (list machine-type))))
+                                              (list machine-type)
+                                              (list all-drive-arrays))))
 
-(defn- small-storage-box [size-list machine-type]
+(defn- small-storage-box [size-list machine-type all-drive-arrays]
   (generate-machines (combo/cartesian-product (list one-r5 one-xl one-silencio one-define-mini)
                                               (list supermicro-x11ssh)
                                               (list g3900 g3930)
                                               (list hba-none hba-9211-4i hba-9211-8i)
                                               size-list
-                                              (list machine-type))))
-
-(def all-storage-in-two-machines
-  (combo/cartesian-product
-    (big-storage-box (list (list lan-combined-target-size)) :lan)
-    (small-storage-box (list (list dmz-combined-target-size)) :dmz)))
-
-(def storage-with-lan-split
-  (combo/cartesian-product
-    (big-storage-box (list (list lan-server-target-size)) :lan)
-    (small-storage-box (list (list lan-client-target-size)) :lan)
-    (small-storage-box (list (list dmz-combined-target-size)) :dmz)))
-
-(def storage-with-dmz-split
-  (combo/cartesian-product
-    (big-storage-box (list (list lan-combined-target-size)) :lan)
-    (small-storage-box (list (list dmz-server-target-size)) :dmz)
-    (small-storage-box (list (list dmz-client-target-size)) :dmz)))
-
-(def all-storage-in-four-machines
-  (combo/cartesian-product
-    (big-storage-box (list (list lan-server-target-size)) :lan)
-    (small-storage-box (list (list lan-client-target-size)) :lan)
-    (small-storage-box (list (list dmz-server-target-size)) :dmz)
-    (small-storage-box (list (list dmz-client-target-size)) :dmz)))
-
-(def list-of-all-storage-machine-configuration-lists (list all-storage-in-two-machines
-                                                           storage-with-lan-split
-                                                           storage-with-dmz-split
-                                                           all-storage-in-four-machines))
+                                              (list machine-type)
+                                              (list all-drive-arrays))))
 
 (defrecord Drive [drive-size can-be-two-point-five-drive drive-cost])
 (def one-tb-drive (Drive. 1 true 59.99M))
@@ -178,6 +145,108 @@
                                         ten-tb-raid-one-z-five-drive-array
                                         twelve-tb-raid-one-z-five-drive-array))
 
+(def one-tb-raid-two-z-five-drive-array (DriveArray. "1TB RAID-2Z x5" 5 1.26 2.06 one-tb-drive))
+(def two-tb-raid-two-z-five-drive-array (DriveArray. "2TB RAID-2Z x5" 5 2.52 4.13 two-tb-drive))
+(def three-tb-raid-two-z-five-drive-array (DriveArray. "3TB RAID-2Z x5" 5 3.78 6.21 three-tb-drive))
+(def four-tb-raid-two-z-five-drive-array (DriveArray. "4TB RAID-2Z x5" 5 5.03 8.26 four-tb-drive))
+(def six-tb-raid-two-z-five-drive-array (DriveArray. "6TB RAID-2Z x5" 5 7.57 12.41 six-tb-drive))
+(def eight-tb-raid-two-z-five-drive-array (DriveArray. "8TB RAID-2Z x5" 5 10.07 16.51 eight-tb-drive))
+(def ten-tb-raid-two-z-five-drive-array (DriveArray. "10TB RAID-2Z x5" 5 12.57 20.61 ten-tb-drive))
+(def twelve-tb-raid-two-z-five-drive-array (DriveArray. "12TB RAID-2Z x5" 5 15.54 24.83 twelve-tb-drive))
+(def raid-two-z-five-drive-arrays (list one-tb-raid-two-z-five-drive-array
+                                        two-tb-raid-two-z-five-drive-array
+                                        three-tb-raid-two-z-five-drive-array
+                                        four-tb-raid-two-z-five-drive-array
+                                        six-tb-raid-two-z-five-drive-array
+                                        eight-tb-raid-two-z-five-drive-array
+                                        ten-tb-raid-two-z-five-drive-array
+                                        twelve-tb-raid-two-z-five-drive-array))
+
+(def one-tb-raid-two-z-six-drive-array (DriveArray. "1TB RAID-2Z x6" 6 1.70 2.79 one-tb-drive))
+(def two-tb-raid-two-z-six-drive-array (DriveArray. "2TB RAID-2Z x6" 6 3.40 5.57 two-tb-drive))
+(def three-tb-raid-two-z-six-drive-array (DriveArray. "3TB RAID-2Z x6" 6 5.08 8.33 three-tb-drive))
+(def four-tb-raid-two-z-six-drive-array (DriveArray. "4TB RAID-2Z x6" 6 6.80 11.15 four-tb-drive))
+(def six-tb-raid-two-z-six-drive-array (DriveArray. "6TB RAID-2Z x6" 6 10.16 16.66 six-tb-drive))
+(def eight-tb-raid-two-z-six-drive-array (DriveArray. "8TB RAID-2Z x6" 6 13.59 22.29 eight-tb-drive))
+(def ten-tb-raid-two-z-six-drive-array (DriveArray. "10TB RAID-2Z x6" 6 17.03 27.93 ten-tb-drive))
+(def twelve-tb-raid-two-z-six-drive-array (DriveArray. "12TB RAID-2Z x6" 6 20.31 33.31 twelve-tb-drive))
+(def raid-two-z-six-drive-arrays (list one-tb-raid-two-z-six-drive-array
+                                       two-tb-raid-two-z-six-drive-array
+                                       three-tb-raid-two-z-six-drive-array
+                                       four-tb-raid-two-z-six-drive-array
+                                       six-tb-raid-two-z-six-drive-array
+                                       eight-tb-raid-two-z-six-drive-array
+                                       ten-tb-raid-two-z-six-drive-array
+                                       twelve-tb-raid-two-z-six-drive-array))
+
+(def one-tb-raid-two-z-seven-drive-array (DriveArray. "1TB RAID-2Z x7" 7 1.97 3.24 one-tb-drive))
+(def two-tb-raid-two-z-seven-drive-array (DriveArray. "2TB RAID-2Z x7" 7 3.95 6.47 two-tb-drive))
+(def three-tb-raid-two-z-seven-drive-array (DriveArray. "3TB RAID-2Z x7" 7 5.94 9.74 three-tb-drive))
+(def four-tb-raid-two-z-seven-drive-array (DriveArray. "4TB RAID-2Z x7" 7 7.89 12.94 four-tb-drive))
+(def six-tb-raid-two-z-seven-drive-array (DriveArray. "6TB RAID-2Z x7" 7 11.88 19.48 six-tb-drive))
+(def eight-tb-raid-two-z-seven-drive-array (DriveArray. "8TB RAID-2Z x7" 7 15.78 25.88 eight-tb-drive))
+(def ten-tb-raid-two-z-seven-drive-array (DriveArray. "10TB RAID-2Z x7" 7 19.84 32.54 ten-tb-drive))
+(def twelve-tb-raid-two-z-seven-drive-array (DriveArray. "12TB RAID-2Z x7" 7 23.75 38.95 twelve-tb-drive))
+(def raid-two-z-seven-drive-arrays (list one-tb-raid-two-z-seven-drive-array
+                                         two-tb-raid-two-z-seven-drive-array
+                                         three-tb-raid-two-z-seven-drive-array
+                                         four-tb-raid-two-z-seven-drive-array
+                                         six-tb-raid-two-z-seven-drive-array
+                                         eight-tb-raid-two-z-seven-drive-array
+                                         ten-tb-raid-two-z-seven-drive-array
+                                         twelve-tb-raid-two-z-seven-drive-array))
+
+(def one-tb-raid-two-z-eight-drive-array (DriveArray. "1TB RAID-2Z x8" 8 2.42 3.96 one-tb-drive))
+(def two-tb-raid-two-z-eight-drive-array (DriveArray. "2TB RAID-2Z x8" 8 4.83 7.93 two-tb-drive))
+(def three-tb-raid-two-z-eight-drive-array (DriveArray. "3TB RAID-2Z x8" 8 7.25 11.89 three-tb-drive))
+(def four-tb-raid-two-z-eight-drive-array (DriveArray. "4TB RAID-2Z x8" 8 9.67 15.85 four-tb-drive))
+(def six-tb-raid-two-z-eight-drive-array (DriveArray. "6TB RAID-2Z x8" 8 14.50 23.78 six-tb-drive))
+(def eight-tb-raid-two-z-eight-drive-array (DriveArray. "8TB RAID-2Z x8" 8 19.33 31.71 eight-tb-drive))
+(def ten-tb-raid-two-z-eight-drive-array (DriveArray. "10TB RAID-2Z x8" 8 24.17 39.63 ten-tb-drive))
+(def twelve-tb-raid-two-z-eight-drive-array (DriveArray. "12TB RAID-2Z x8" 8 29.00 47.56 twelve-tb-drive))
+(def raid-two-z-eight-drive-arrays (list one-tb-raid-two-z-eight-drive-array
+                                         two-tb-raid-two-z-eight-drive-array
+                                         three-tb-raid-two-z-eight-drive-array
+                                         four-tb-raid-two-z-eight-drive-array
+                                         six-tb-raid-two-z-eight-drive-array
+                                         eight-tb-raid-two-z-eight-drive-array
+                                         ten-tb-raid-two-z-eight-drive-array
+                                         twelve-tb-raid-two-z-eight-drive-array))
+
+(def one-tb-raid-two-z-nine-drive-array (DriveArray. "1TB RAID-2Z x9" 9 2.90 4.76 one-tb-drive))
+(def two-tb-raid-two-z-nine-drive-array (DriveArray. "2TB RAID-2Z x9" 9 5.80 9.52 two-tb-drive))
+(def three-tb-raid-two-z-nine-drive-array (DriveArray. "3TB RAID-2Z x9" 9 8.75 14.35 three-tb-drive))
+(def four-tb-raid-two-z-nine-drive-array (DriveArray. "4TB RAID-2Z x9" 9 11.61 19.04 four-tb-drive))
+(def six-tb-raid-two-z-nine-drive-array (DriveArray. "6TB RAID-2Z x9" 9 17.50 28.70 six-tb-drive))
+(def eight-tb-raid-two-z-nine-drive-array (DriveArray. "8TB RAID-2Z x9" 9 23.21 38.07 eight-tb-drive))
+(def ten-tb-raid-two-z-nine-drive-array (DriveArray. "10TB RAID-2Z x9" 9 29.11 47.74 ten-tb-drive))
+(def twelve-tb-raid-two-z-nine-drive-array (DriveArray. "12TB RAID-2Z x9" 9 35.00 57.40 twelve-tb-drive))
+(def raid-two-z-nine-drive-arrays (list one-tb-raid-two-z-nine-drive-array
+                                         two-tb-raid-two-z-nine-drive-array
+                                         three-tb-raid-two-z-nine-drive-array
+                                         four-tb-raid-two-z-nine-drive-array
+                                         six-tb-raid-two-z-nine-drive-array
+                                         eight-tb-raid-two-z-nine-drive-array
+                                         ten-tb-raid-two-z-nine-drive-array
+                                         twelve-tb-raid-two-z-nine-drive-array))
+
+(def one-tb-raid-two-z-ten-drive-array (DriveArray. "1TB RAID-2Z x10" 10 3.24 5.31 one-tb-drive))
+(def two-tb-raid-two-z-ten-drive-array (DriveArray. "2TB RAID-2Z x10" 10 6.47 10.62 two-tb-drive))
+(def three-tb-raid-two-z-ten-drive-array (DriveArray. "3TB RAID-2Z x10" 10 9.73 15.96 three-tb-drive))
+(def four-tb-raid-two-z-ten-drive-array (DriveArray. "4TB RAID-2Z x10" 10 12.95 21.23 four-tb-drive))
+(def six-tb-raid-two-z-ten-drive-array (DriveArray. "6TB RAID-2Z x10" 10 19.46 31.92 six-tb-drive))
+(def eight-tb-raid-two-z-ten-drive-array (DriveArray. "8TB RAID-2Z x10" 10 25.89 42.46 eight-tb-drive))
+(def ten-tb-raid-two-z-ten-drive-array (DriveArray. "10TB RAID-2Z x10" 10 32.32 53.01 ten-tb-drive))
+(def twelve-tb-raid-two-z-ten-drive-array (DriveArray. "12TB RAID-2Z x10" 10 38.93 63.84 twelve-tb-drive))
+(def raid-two-z-ten-drive-arrays (list one-tb-raid-two-z-ten-drive-array
+                                        two-tb-raid-two-z-ten-drive-array
+                                        three-tb-raid-two-z-ten-drive-array
+                                        four-tb-raid-two-z-ten-drive-array
+                                        six-tb-raid-two-z-ten-drive-array
+                                        eight-tb-raid-two-z-ten-drive-array
+                                        ten-tb-raid-two-z-ten-drive-array
+                                        twelve-tb-raid-two-z-ten-drive-array))
+
 (def one-tb-mirror-drive-array (DriveArray. "1TB MIRROR" 2 0.42 0.70 one-tb-drive))
 (def two-tb-mirror-drive-array (DriveArray. "2TB MIRROR" 2 0.85 2.39 two-tb-drive))
 (def three-tb-mirror-drive-array (DriveArray. "3TB MIRROR" 2 1.27 2.09 three-tb-drive))
@@ -195,8 +264,62 @@
                                ten-tb-mirror-drive-array
                                twelve-tb-mirror-drive-array))
 
-(def all-drive-arrays (list raid-one-z-three-drive-arrays
+(def all-small-drive-arrays (list raid-one-z-three-drive-arrays
                             raid-one-z-four-drive-arrays
                             raid-one-z-five-drive-arrays
                             mirror-drive-arrays))
 
+(def all-raid-two-z-drive-arrays (list raid-two-z-five-drive-arrays
+                                      raid-two-z-six-drive-arrays
+                                      raid-two-z-seven-drive-arrays
+                                      raid-two-z-eight-drive-arrays
+                                      raid-two-z-nine-drive-arrays
+                                      raid-two-z-ten-drive-arrays))
+
+(def all-storage-in-one-machine
+  (map list
+       (generate-machines (combo/cartesian-product (list one-r5 one-xl)
+                                                   (list augmented-msi-x99a-tomahawk)
+                                                   (list e5-2603-v3)
+                                                   (list hba-none hba-9211-4i hba-9211-8i)
+                                                   (list (list lan-combined-target-size dmz-combined-target-size))
+                                                   (list :lan-and-dmz)
+                                                   (list all-small-drive-arrays)))))
+
+(def raid-one-z-storage-in-lan-machine
+  (combo/cartesian-product
+    (big-storage-box (list (list lan-combined-target-size)) :lan all-small-drive-arrays)
+    (small-storage-box (list (list dmz-combined-target-size)) :dmz all-small-drive-arrays)))
+
+(def raid-two-z-storage-in-lan-machine
+  (combo/cartesian-product
+    (big-storage-box (list (list lan-server-target-size)) :lan all-raid-two-z-drive-arrays)
+    (small-storage-box (list (list dmz-combined-target-size)) :dmz all-small-drive-arrays)))
+
+(def all-storage-in-two-machines
+  (concat raid-one-z-storage-in-lan-machine raid-two-z-storage-in-lan-machine))
+
+(def storage-with-lan-split
+  (combo/cartesian-product
+    (big-storage-box (list (list lan-server-target-size)) :lan all-small-drive-arrays)
+    (small-storage-box (list (list lan-client-target-size)) :lan all-small-drive-arrays)
+    (small-storage-box (list (list dmz-combined-target-size)) :dmz all-small-drive-arrays)))
+
+(def storage-with-dmz-split
+  (combo/cartesian-product
+    (big-storage-box (list (list lan-combined-target-size)) :lan all-small-drive-arrays)
+    (small-storage-box (list (list dmz-server-target-size)) :dmz all-small-drive-arrays)
+    (small-storage-box (list (list dmz-client-target-size)) :dmz all-small-drive-arrays)))
+
+(def all-storage-in-four-machines
+  (combo/cartesian-product
+    (big-storage-box (list (list lan-server-target-size)) :lan all-small-drive-arrays)
+    (small-storage-box (list (list lan-client-target-size)) :lan all-small-drive-arrays)
+    (small-storage-box (list (list dmz-server-target-size)) :dmz all-small-drive-arrays)
+    (small-storage-box (list (list dmz-client-target-size)) :dmz all-small-drive-arrays)))
+
+(def list-of-all-storage-machine-configuration-lists (list all-storage-in-one-machine
+                                                           all-storage-in-two-machines
+                                                           storage-with-lan-split
+                                                           storage-with-dmz-split
+                                                           all-storage-in-four-machines))

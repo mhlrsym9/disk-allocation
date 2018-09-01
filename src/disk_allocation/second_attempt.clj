@@ -15,7 +15,7 @@
 (defn- extract-valid-drive-arrays [number-drives-needed]
   (filter (fn [[{:keys [number-drives]}]]
             (= 0 (mod number-drives-needed number-drives)))
-          all-drive-arrays))
+          all-small-drive-arrays))
 
 (defn- create-all-drive-array-configurations [br valid-drive-arrays]
   (mapcat (fn [das]
@@ -58,7 +58,7 @@
 
 (defn- generate-all-valid-storage-machines [^Machine sm]
   (map (fn [dac] {:drive-array-configuration dac :storage-machine sm})
-       (mapcat (fn [das] (generate-all-valid-machines sm :tib-50-percent das)) all-drive-arrays)))
+       (mapcat (fn [das] (generate-all-valid-machines sm :tib-50-percent das)) all-small-drive-arrays)))
 
 (defn- drive-array-total-cost [{:keys [number-drives], {:keys [drive-cost]} :drive}]
   (* number-drives drive-cost))
