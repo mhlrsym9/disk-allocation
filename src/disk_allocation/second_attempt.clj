@@ -180,8 +180,8 @@
 (defn- generate-all-priced-valid-storage-configurations [smc]
   (let [all-valid-storage-machine-configurations (generate-all-valid-storage-machine-configurations smc)
         all-system-configurations  (combo/cartesian-product all-valid-storage-machine-configurations
-                                                           all-lan-servers
-                                                           all-dmz-servers)]
+                                                           all-empty-lan-servers
+                                                           all-empty-dmz-servers)]
     (map (fn [[{:keys [vsmc drive-cost]} lan dmz :as sc]]
            {:cost                 (storage-configuration-total-cost sc)
             :drive-cost           drive-cost

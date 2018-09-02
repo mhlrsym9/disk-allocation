@@ -1,5 +1,6 @@
 (ns disk-allocation.data
-  (:require [clojure.math.combinatorics :as combo]))
+  (:require [clojure.math.combinatorics :as combo])
+  (:import [java.lang Math]))
 
 (defrecord Cpu [cost name])
 (def e5-2603-v3 (->Cpu 221.00M "e5-2603-v3"))
@@ -30,6 +31,10 @@
 (def one-silencio (->Case 4 4 79.99M "Silencio"))
 (def one-norco (->Case 16 0 331.41M "Norco"))
 
+(defrecord CaseDrivesAdjustment [three-point-five-drives-adjustment two-point-five-drives-adjustment name])
+(def current-lan-adjustment (->CaseDrivesAdjustment 3 0 "lan-adjustment"))
+(def current-dmz-adjustment (->CaseDrivesAdjustment 1 2 "dmz-adjustment"))
+
 (def one-tb-to-tib 0.909495M)
 (def lan-server-target-size (* 9.128M 2.5M one-tb-to-tib))
 (def lan-client-target-size (* 5.812M 1.5M one-tb-to-tib))
@@ -46,41 +51,57 @@
          (->Machine case mb cpu hba size type all-drive-arrays))
        all-components))
 
+(defn- generate-already-loaded-machines [all-components]
+  (map (fn [[{:keys [three-point-five-drives two-point-five-drives] :as case}
+             {:keys [three-point-five-drives-adjustment two-point-five-drives-adjustment]}
+             mb cpu hba size type all-drive-arrays]]
+         (let [^int two-point-five-drives-remaining (- two-point-five-drives two-point-five-drives-adjustment)
+               final-two-point-five-drives (max 0 two-point-five-drives-remaining)
+               final-three-point-five-drives (- three-point-five-drives
+                                                three-point-five-drives-adjustment
+                                                (if (< two-point-five-drives-remaining 0)
+                                                  (Math/abs two-point-five-drives-remaining)
+                                                  0))
+               final-case (assoc case :three-point-five-drives final-three-point-five-drives
+                                      :two-point-five-drives final-two-point-five-drives)]
+           (->Machine final-case mb cpu hba size type all-drive-arrays)))
+       all-components))
+
 (def list-of-lan-cases (list one-r5 one-xl one-define-mini one-silencio))
-(def all-lan-servers (generate-machines (combo/cartesian-product list-of-lan-cases
+(def all-empty-lan-servers (generate-machines (combo/cartesian-product list-of-lan-cases
                                                                  (list asrock-x99m)
                                                                  (list e5-2603-v4)
                                                                  (list hba-none)
                                                                  (list nil)
                                                                  (list :lan)
                                                                  (list nil))))
+(def all-already-loaded-lan-servers (generate-already-loaded-machines
+                                      (combo/cartesian-product list-of-lan-cases
+                                                               (list current-lan-adjustment)
+                                                               (list asrock-x99m)
+                                                               (list e5-2603-v4)
+                                                               (list hba-none)
+                                                               (list nil)
+                                                               (list :lan)
+                                                               (list nil))))
 
 (def list-of-dmz-cases (list one-r5 one-xl one-define-mini one-silencio one-phanteks-itx))
-(def all-dmz-servers (generate-machines (combo/cartesian-product list-of-dmz-cases
+(def all-empty-dmz-servers (generate-machines (combo/cartesian-product list-of-dmz-cases
                                                                  (list ga-9sisl)
                                                                  (list atom-c2750)
                                                                  (list hba-none)
                                                                  (list nil)
                                                                  (list :dmz)
                                                                  (list nil))))
-
-(defn- big-storage-box [size-list machine-type all-drive-arrays]
-  (generate-machines (combo/cartesian-product (list one-r5 one-xl)
-                                              (list msi-x99a-tomahawk)
-                                              (list e5-2603-v3)
-                                              (list hba-none hba-9211-4i hba-9211-8i)
-                                              size-list
-                                              (list machine-type)
-                                              (list all-drive-arrays))))
-
-(defn- small-storage-box [size-list machine-type all-drive-arrays]
-  (generate-machines (combo/cartesian-product (list one-r5 one-xl one-silencio one-define-mini)
-                                              (list supermicro-x11ssh)
-                                              (list g3900 g3930)
-                                              (list hba-none hba-9211-4i hba-9211-8i)
-                                              size-list
-                                              (list machine-type)
-                                              (list all-drive-arrays))))
+(def all-already-loaded-dmz-servers (generate-already-loaded-machines
+                                      (combo/cartesian-product list-of-dmz-cases
+                                                               (list current-dmz-adjustment)
+                                                               (list ga-9sisl)
+                                                               (list atom-c2750)
+                                                               (list hba-none)
+                                                               (list nil)
+                                                               (list :dmz)
+                                                               (list nil))))
 
 (defrecord Drive [drive-size can-be-two-point-five-drive drive-cost])
 (def one-tb-drive (Drive. 1 true 59.99M))
@@ -265,60 +286,95 @@
                                twelve-tb-mirror-drive-array))
 
 (def all-small-drive-arrays (list raid-one-z-three-drive-arrays
-                            raid-one-z-four-drive-arrays
-                            raid-one-z-five-drive-arrays
-                            mirror-drive-arrays))
+                                  raid-one-z-four-drive-arrays
+                                  raid-one-z-five-drive-arrays
+                                  mirror-drive-arrays))
 
 (def all-raid-two-z-drive-arrays (list raid-two-z-five-drive-arrays
-                                      raid-two-z-six-drive-arrays
-                                      raid-two-z-seven-drive-arrays
-                                      raid-two-z-eight-drive-arrays
-                                      raid-two-z-nine-drive-arrays
-                                      raid-two-z-ten-drive-arrays))
+                                       raid-two-z-six-drive-arrays
+                                       raid-two-z-seven-drive-arrays
+                                       raid-two-z-eight-drive-arrays
+                                       raid-two-z-nine-drive-arrays
+                                       raid-two-z-ten-drive-arrays))
+
+(def all-drive-arrays (concat all-small-drive-arrays all-raid-two-z-drive-arrays))
+
+(defn generate-standard-pool [smc-pool]
+  {:smc-pool smc-pool :lan-pool all-empty-lan-servers :dmz-pool all-empty-dmz-servers})
 
 (def all-storage-in-one-machine
-  (map list
-       (generate-machines (combo/cartesian-product (list one-r5 one-xl)
-                                                   (list augmented-msi-x99a-tomahawk)
-                                                   (list e5-2603-v3)
-                                                   (list hba-none hba-9211-4i hba-9211-8i)
-                                                   (list (list lan-combined-target-size dmz-combined-target-size))
-                                                   (list :lan-and-dmz)
-                                                   (list all-small-drive-arrays)))))
+  (generate-standard-pool (map list
+                               (generate-machines
+                                 (combo/cartesian-product (list one-r5 one-xl)
+                                                          (list augmented-msi-x99a-tomahawk)
+                                                          (list e5-2603-v3)
+                                                          (list hba-none hba-9211-4i hba-9211-8i)
+                                                          (list (list lan-combined-target-size
+                                                                      dmz-combined-target-size))
+                                                          (list :lan-and-dmz)
+                                                          (list all-drive-arrays))))))
 
-(def raid-one-z-storage-in-lan-machine
-  (combo/cartesian-product
-    (big-storage-box (list (list lan-combined-target-size)) :lan all-small-drive-arrays)
-    (small-storage-box (list (list dmz-combined-target-size)) :dmz all-small-drive-arrays)))
+(def all-server-storage-in-one-machine
+  {:smc-pool (map list
+                  (generate-machines (combo/cartesian-product (list one-r5 one-xl)
+                                                              (list augmented-msi-x99a-tomahawk)
+                                                              (list e5-2603-v3)
+                                                              (list hba-none hba-9211-4i hba-9211-8i)
+                                                              (list (list lan-server-target-size
+                                                                          dmz-server-target-size))
+                                                              (list :lan-and-dmz)
+                                                              (list all-drive-arrays))))
+   :lan-pool all-already-loaded-lan-servers
+   :dmz-pool all-already-loaded-dmz-servers})
 
-(def raid-two-z-storage-in-lan-machine
-  (combo/cartesian-product
-    (big-storage-box (list (list lan-server-target-size)) :lan all-raid-two-z-drive-arrays)
-    (small-storage-box (list (list dmz-combined-target-size)) :dmz all-small-drive-arrays)))
+(defn- big-storage-box [size-list machine-type drive-arrays]
+  (generate-machines (combo/cartesian-product (list one-r5 one-xl)
+                                              (list msi-x99a-tomahawk)
+                                              (list e5-2603-v3)
+                                              (list hba-none hba-9211-4i hba-9211-8i)
+                                              size-list
+                                              (list machine-type)
+                                              (list drive-arrays))))
+
+(defn- small-storage-box [size-list machine-type drive-arrays]
+  (generate-machines (combo/cartesian-product (list one-r5 one-xl one-silencio one-define-mini)
+                                              (list supermicro-x11ssh)
+                                              (list g3900 g3930)
+                                              (list hba-none hba-9211-4i hba-9211-8i)
+                                              size-list
+                                              (list machine-type)
+                                              (list drive-arrays))))
 
 (def all-storage-in-two-machines
-  (concat raid-one-z-storage-in-lan-machine raid-two-z-storage-in-lan-machine))
+  (generate-standard-pool
+    (combo/cartesian-product
+      (big-storage-box (list (list lan-combined-target-size)) :lan all-raid-two-z-drive-arrays)
+      (small-storage-box (list (list dmz-combined-target-size)) :dmz all-small-drive-arrays))))
 
 (def storage-with-lan-split
-  (combo/cartesian-product
-    (big-storage-box (list (list lan-server-target-size)) :lan all-small-drive-arrays)
-    (small-storage-box (list (list lan-client-target-size)) :lan all-small-drive-arrays)
-    (small-storage-box (list (list dmz-combined-target-size)) :dmz all-small-drive-arrays)))
+  (generate-standard-pool
+    (combo/cartesian-product
+      (big-storage-box (list (list lan-server-target-size)) :lan all-drive-arrays)
+      (small-storage-box (list (list lan-client-target-size)) :lan all-small-drive-arrays)
+      (small-storage-box (list (list dmz-combined-target-size)) :dmz all-small-drive-arrays))))
 
 (def storage-with-dmz-split
-  (combo/cartesian-product
-    (big-storage-box (list (list lan-combined-target-size)) :lan all-small-drive-arrays)
-    (small-storage-box (list (list dmz-server-target-size)) :dmz all-small-drive-arrays)
-    (small-storage-box (list (list dmz-client-target-size)) :dmz all-small-drive-arrays)))
+  (generate-standard-pool
+    (combo/cartesian-product
+      (big-storage-box (list (list lan-combined-target-size)) :lan all-drive-arrays)
+      (small-storage-box (list (list dmz-server-target-size)) :dmz all-small-drive-arrays)
+      (small-storage-box (list (list dmz-client-target-size)) :dmz all-small-drive-arrays))))
 
 (def all-storage-in-four-machines
-  (combo/cartesian-product
-    (big-storage-box (list (list lan-server-target-size)) :lan all-small-drive-arrays)
-    (small-storage-box (list (list lan-client-target-size)) :lan all-small-drive-arrays)
-    (small-storage-box (list (list dmz-server-target-size)) :dmz all-small-drive-arrays)
-    (small-storage-box (list (list dmz-client-target-size)) :dmz all-small-drive-arrays)))
+  (generate-standard-pool
+    (combo/cartesian-product
+      (big-storage-box (list (list lan-server-target-size)) :lan all-drive-arrays)
+      (small-storage-box (list (list lan-client-target-size)) :lan all-small-drive-arrays)
+      (small-storage-box (list (list dmz-server-target-size)) :dmz all-small-drive-arrays)
+      (small-storage-box (list (list dmz-client-target-size)) :dmz all-small-drive-arrays))))
 
 (def list-of-all-storage-machine-configuration-lists (list all-storage-in-one-machine
+                                                           all-server-storage-in-one-machine
                                                            all-storage-in-two-machines
                                                            storage-with-lan-split
                                                            storage-with-dmz-split
