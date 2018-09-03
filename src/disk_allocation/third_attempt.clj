@@ -217,13 +217,42 @@
         (remove-all-drive-arrays-from-machine lan)
         (remove-all-drive-arrays-from-machine dmz)))
 
-(defn- final-cost-adjustment [storage-configuration [machine-configuration]]
+(defn- total-number-of-drives-in-machine [[s m]]
+  (+ (total-number-drives-in-vm-dac s)
+     (:three-point-five-drives-required (:rd m))
+     (:two-point-five-drives-required (:rd m))))
+
+(defn- final-cost-adjustment-for-xl-machines [storage-configuration [machine-configuration]]
   (let [paired-configurations (map #(list %1 %2) storage-configuration machine-configuration)
         xl-machines (filter (fn [[_ m]] (= (:name one-xl) (:name (:case m)))) paired-configurations)
-        big-storage-xls (filter (fn [[s]] (< 12 (total-number-drives-in-vm-dac s))) xl-machines)]
-    (if (seq big-storage-xls)
-      (* 87.98M (count big-storage-xls))
+        big-storage-xls (filter (fn [c] (= 13 (total-number-of-drives-in-machine c))) xl-machines)
+        really-big-storage-xls (filter (fn [c] (= 14 (total-number-of-drives-in-machine c))) xl-machines)]
+    (+ (if (seq really-big-storage-xls)
+         (* 117.98M (count really-big-storage-xls))
+         0.00M)
+       (if (seq big-storage-xls)
+         (* 58.99M (count big-storage-xls))
+         0.00M))))
+
+(defn- final-cost-adjustment-for-r5-machines [storage-configuration [machine-configuration]]
+  (let [paired-configurations (map #(list %1 %2) storage-configuration machine-configuration)
+        r5-machines (filter (fn [[_ m]] (= (:name one-r5) (:name (:case m)))) paired-configurations)
+        big-storage-r5s (filter (fn [[s _ :as c]]
+                                  (or (< 12 (total-number-of-drives-in-machine c))
+                                      (and (< 10 (total-number-of-drives-in-machine c))
+                                           (seq (filter #(= (:drive-size one-tb-drive) %)
+                                                        (map :drive-size
+                                                             (map :drive
+                                                                  (apply concat
+                                                                         (apply concat s)))))))))
+                                r5-machines)]
+    (if (seq big-storage-r5s)
+      (* 58.99M (count big-storage-r5s))
       0.00M)))
+
+(defn- final-cost-adjustment [storage-configuration machine-configuration]
+  (apply + ((juxt final-cost-adjustment-for-xl-machines final-cost-adjustment-for-r5-machines)
+             storage-configuration machine-configuration)))
 
 (comment (defn- find-cheapest-storage-system-for-this-storage-machine-configuration [pool smc]
            (let [storage-configuration-pattern (utils/generate-storage-machine-configuration-pattern-v3 smc)
