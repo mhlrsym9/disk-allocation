@@ -344,12 +344,42 @@
       (small-storage-box (list dmz-server-target-size) :dmz all-small-drive-arrays)
       (small-storage-box (list dmz-client-target-size) :dmz all-small-drive-arrays))))
 
+(def placeholder-big-storage-box
+  (generate-machines (combo/cartesian-product (list one-r5 one-xl)
+                                              (list augmented-msi-x99a-tomahawk)
+                                              (list e5-2603-v3)
+                                              (list hba-none hba-9211-4i hba-9211-8i)
+                                              (list no-required-drives)
+                                              (list (list lan-server-target-size dmz-server-target-size))
+                                              (list :lan-and-dmz)
+                                              (list all-drive-arrays))))
+
+(def placeholder-lan-storage-box
+  (generate-machines (combo/cartesian-product list-of-lan-cases
+                                              (list asrock-x99m)
+                                              (list e5-2603-v4)
+                                              (list hba-none) ; LAN has no extra slots available!
+                                              (list lan-required-drives)
+                                              (list (list lan-client-target-size))
+                                              (list :lan)
+                                              (list all-small-drive-arrays))))
+
+(def placeholder-dmz-storage-box
+  (generate-machines (combo/cartesian-product list-of-dmz-cases
+                                              (list ga-9sisl)
+                                              (list atom-c2750)
+                                              (list hba-none)
+                                              (list dmz-required-drives)
+                                              (list (list dmz-client-target-size))
+                                              (list :dmz)
+                                              (list all-small-drive-arrays))))
+
 (def storage-with-placeholders
   (generate-placeholder-pool
     (combo/cartesian-product
-      (big-storage-box (list lan-server-target-size dmz-server-target-size) :lan-and-dmz all-drive-arrays)
-      (small-storage-box (list lan-client-target-size) :lan all-small-drive-arrays lan-required-drives)
-      (small-storage-box (list dmz-client-target-size) :dmz all-small-drive-arrays dmz-required-drives))))
+      placeholder-big-storage-box
+      placeholder-lan-storage-box
+      placeholder-dmz-storage-box)))
 
 (def all-storage-in-four-machines
   (generate-standard-pool
@@ -361,6 +391,7 @@
 
 (def list-of-all-storage-machine-configuration-lists (list all-storage-in-one-machine
                                                            all-storage-in-two-machines
+                                                           storage-with-placeholders
                                                            storage-with-lan-split
                                                            storage-with-dmz-split
                                                            all-storage-in-four-machines))

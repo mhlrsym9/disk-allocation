@@ -63,8 +63,9 @@
   (utils/calculate-drive-adjustment (map (fn [vm-dac] (apply concat vm-dac)) sc) scp))
 
 (defn- calculate-storage-configuration-cost [sc scp]
-  (- (reduce (fn [r dac] (+ r (vm-dac-cost dac))) 0.00M sc)
-     (calculate-drive-adjustment-with-vm-dacs sc scp)))
+  (when sc
+    (- (reduce (fn [r dac] (+ r (vm-dac-cost dac))) 0.00M sc)
+       (calculate-drive-adjustment-with-vm-dacs sc scp))))
 
 (defn- total-number-drives-in-vm-dac [vm-dac]
   (reduce (fn [r dac] (+ r (utils/total-number-drives-in-dac dac))) 0 vm-dac))
@@ -174,30 +175,22 @@
                        (list one-silencio does-case-match? 1)))
 
 (defn- calculate-machine-configuration-cost [[the-storage-machines & machines :as mc]]
-  (let [all-machines (concat the-storage-machines machines)]
-    (- (reduce (fn [cost ^Machine machine] (+ cost (calculate-machine-cost machine))) 0.00M all-machines)
-       (apply + (map (fn [[item match-fnc held]]
-                       (adjust-cost-for-matching-items-in-system-configuration mc item match-fnc held))
-                     adjustments))
-       (let [number-msi (count-matching-items-in-machine-configuration mc msi-x99a-tomahawk does-mb-match?)
-             number-augmented-msi (count-matching-items-in-machine-configuration mc augmented-msi-x99a-tomahawk does-mb-match?)]
-         (if (or (< 0 number-msi)
-                 (< 0 number-augmented-msi))
-           (:cost msi-x99a-tomahawk)
-           0.00M)))))
+  (when mc
+    (let [all-machines (concat the-storage-machines machines)]
+      (- (reduce (fn [cost ^Machine machine] (+ cost (calculate-machine-cost machine))) 0.00M all-machines)
+         (apply + (map (fn [[item match-fnc held]]
+                         (adjust-cost-for-matching-items-in-system-configuration mc item match-fnc held))
+                       adjustments))
+         (let [number-msi (count-matching-items-in-machine-configuration mc msi-x99a-tomahawk does-mb-match?)
+               number-augmented-msi (count-matching-items-in-machine-configuration mc augmented-msi-x99a-tomahawk does-mb-match?)]
+           (if (or (< 0 number-msi)
+                   (< 0 number-augmented-msi))
+             (:cost msi-x99a-tomahawk)
+             0.00M))))))
 
 (defn- extract-total-three-point-five-drives [[the-storage-machines & machines]]
   (let [all-machines (concat the-storage-machines machines)]
-    (reduce (fn [r v] (if (nil? v)
-                        (println "v is NIL!")
-                        (let [{:keys [case]} v]
-                          (if (nil? case)
-                            (println "case is NIL!")
-                            (let [{:keys [three-point-five-drives]} case]
-                              (if (nil? three-point-five-drives)
-                                (println "three-point-five-drives is NIL!")
-                                (+ r three-point-five-drives)))))))
-            0 all-machines)))
+    (reduce (fn [r v] (+ r (:three-point-five-drives (:case v)))) 0 all-machines)))
 
 (defn- find-cheapest-machine-configuration [{:keys [lan-pool dmz-pool]} smc]
   (let [all-machine-configurations (combo/cartesian-product (list smc) lan-pool dmz-pool)
@@ -216,23 +209,6 @@
                             (first all-valid-machine-configurations))
                       (rest all-valid-machine-configurations))))))
 
-(comment (defn- find-cheapest-storage-system-for-this-storage-machine-configuration [pool smc]
-           (let [storage-configuration-pattern (utils/generate-storage-machine-configuration-pattern-v3 smc)
-                 cheapest-storage-configuration (find-cheapest-storage-configuration
-                                                  storage-configuration-pattern)
-                 cheapest-machine-configuration (find-cheapest-machine-configuration pool smc)
-                 result {:storage-configuration      @cheapest-storage-configuration
-                         :storage-configuration-cost (calculate-storage-configuration-cost
-                                                       @cheapest-storage-configuration
-                                                       storage-configuration-pattern)
-                         :machine-configuration      cheapest-machine-configuration
-                         :machine-configuration-cost (calculate-machine-configuration-cost
-                                                       cheapest-machine-configuration)}]
-             (println (str "Cheapest cost of this smc is "
-                           (+ (:storage-configuration-cost result)
-                              (:machine-configuration-cost result))))
-             result)))
-
 (defn- remove-all-drive-arrays-from-machine [^Machine mc]
   (assoc mc :all-drive-arrays (list nil)))
 
@@ -241,19 +217,41 @@
         (remove-all-drive-arrays-from-machine lan)
         (remove-all-drive-arrays-from-machine dmz)))
 
+(comment (defn- find-cheapest-storage-system-for-this-storage-machine-configuration [pool smc]
+           (let [storage-configuration-pattern (utils/generate-storage-machine-configuration-pattern-v3 smc)
+                 cheapest-storage-configuration (find-cheapest-storage-configuration
+                                                  storage-configuration-pattern)
+                 storage-configuration-cost (calculate-storage-configuration-cost
+                                              @cheapest-storage-configuration
+                                              storage-configuration-pattern)
+                 cheapest-machine-configuration (find-cheapest-machine-configuration pool smc)
+                 machine-configuration-cost (calculate-machine-configuration-cost
+                                              cheapest-machine-configuration)]
+             (if (and machine-configuration-cost storage-configuration-cost)
+               (do
+                 (println (str "Cheapest cost of this smc is "
+                               (+ machine-configuration-cost storage-configuration-cost)))
+                 {:storage-configuration      @cheapest-storage-configuration
+                  :storage-configuration-cost storage-configuration-cost
+                  :machine-configuration      (remove-all-drive-arrays-from-machine-configuration
+                                                cheapest-machine-configuration)
+                  :machine-configuration-cost machine-configuration-cost})
+               (println "No valid configuration for this smc!")))))
+
 (defn- find-cheapest-storage-system-for-this-storage-machine-configuration [scp csc pool smc]
-  (let [cheapest-machine-configuration (find-cheapest-machine-configuration pool smc)]
-    (when (and csc cheapest-machine-configuration)
-      (let [result {:storage-configuration      csc
-                    :storage-configuration-cost (calculate-storage-configuration-cost csc scp)
-                    :machine-configuration      (remove-all-drive-arrays-from-machine-configuration
-                                                  cheapest-machine-configuration)
-                    :machine-configuration-cost (calculate-machine-configuration-cost
-                                                  cheapest-machine-configuration)}]
+  (let [cheapest-machine-configuration (find-cheapest-machine-configuration pool smc)
+        machine-configuration-cost (calculate-machine-configuration-cost cheapest-machine-configuration)
+        storage-configuration-cost (calculate-storage-configuration-cost csc scp)]
+    (if (and machine-configuration-cost storage-configuration-cost)
+      (do
         (println (str "Cheapest cost of this smc is "
-                      (+ (:storage-configuration-cost result)
-                         (:machine-configuration-cost result))))
-        result))))
+                      (+ storage-configuration-cost machine-configuration-cost)))
+        {:storage-configuration      csc
+         :storage-configuration-cost storage-configuration-cost
+         :machine-configuration      (remove-all-drive-arrays-from-machine-configuration
+                                       cheapest-machine-configuration)
+         :machine-configuration-cost machine-configuration-cost})
+      (println "No valid configuration for this smc!"))))
 
 (defn- lowest-machine-count
   [{r-mc :machine-configuration :as r}
