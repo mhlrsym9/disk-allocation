@@ -60,6 +60,21 @@
                                                (- max-number-drives-in-case
                                                   max-number-drives-in-mb)))})))
 
+(defn- make-drive-adjustment [{:keys [max-number-drives number-two-point-five-drives]}
+                              {{:keys [three-point-five-drives-required
+                                       two-point-five-drives-required]} :rd}]
+  (let [^int two-point-five-drives-remaining (- number-two-point-five-drives
+                                                two-point-five-drives-required)
+        final-two-point-five-drives (max 0 two-point-five-drives-remaining)
+        final-three-point-five-drives (- max-number-drives
+                                         number-two-point-five-drives
+                                         three-point-five-drives-required
+                                         (if (< two-point-five-drives-remaining 0)
+                                           (Math/abs two-point-five-drives-remaining)
+                                           0))]
+    {:max-number-drives (+ final-three-point-five-drives final-two-point-five-drives)
+     :number-two-point-five-drives final-two-point-five-drives}))
+
 (defn- target-size-for-machine [{:keys [target-size]}]
   {:target-size (first target-size)})
 
@@ -76,7 +91,7 @@
   {:all-drive-arrays all-drive-arrays})
 
 (defn generate-machine-configuration-pattern-v3 [mc]
-  (merge (max-number-drives-for-machine mc)
+  (merge (make-drive-adjustment (max-number-drives-for-machine mc) mc)
          (target-size-for-machine-v3 mc)
          (all-drive-arrays-for-machine-v3 mc)))
 

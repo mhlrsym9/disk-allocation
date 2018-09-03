@@ -115,6 +115,7 @@
 
 (defn- good-case-configuration? [machine-names]
   (cond
+    (= 0 (count machine-names)) true
     (= 1 (count machine-names)) true
     (= 2 (count machine-names)) (= (first machine-names) (second machine-names))
     (= 3 (count machine-names)) (let [the-partitions (partition-by identity machine-names)]
@@ -126,7 +127,7 @@
     :else false))
 
 (defn- keep-good-case-configurations [[smc lan dmz]]
-  (let [all-machines (concat smc (list lan dmz))
+  (let [all-machines (remove #(= :placeholder (:type %)) (concat smc (list lan dmz)))
         lan-machine-names (extract-sorted-machine-names (extract-machines-of-type :lan all-machines))
         dmz-machine-names (extract-sorted-machine-names (extract-machines-of-type :dmz all-machines))
         lan-and-dmz-machine-names (extract-sorted-machine-names (extract-machines-of-type :lan-and-dmz all-machines))]
@@ -187,7 +188,16 @@
 
 (defn- extract-total-three-point-five-drives [[the-storage-machines & machines]]
   (let [all-machines (concat the-storage-machines machines)]
-    (reduce (fn [r v] (+ r (:three-point-five-drives (:case v)))) 0 all-machines)))
+    (reduce (fn [r v] (if (nil? v)
+                        (println "v is NIL!")
+                        (let [{:keys [case]} v]
+                          (if (nil? case)
+                            (println "case is NIL!")
+                            (let [{:keys [three-point-five-drives]} case]
+                              (if (nil? three-point-five-drives)
+                                (println "three-point-five-drives is NIL!")
+                                (+ r three-point-five-drives)))))))
+            0 all-machines)))
 
 (defn- find-cheapest-machine-configuration [{:keys [lan-pool dmz-pool]} smc]
   (let [all-machine-configurations (combo/cartesian-product (list smc) lan-pool dmz-pool)
@@ -232,18 +242,18 @@
         (remove-all-drive-arrays-from-machine dmz)))
 
 (defn- find-cheapest-storage-system-for-this-storage-machine-configuration [scp csc pool smc]
-  (when csc
-    (let [cheapest-machine-configuration (find-cheapest-machine-configuration pool smc)
-          result {:storage-configuration      csc
-                  :storage-configuration-cost (calculate-storage-configuration-cost csc scp)
-                  :machine-configuration      (remove-all-drive-arrays-from-machine-configuration
-                                                cheapest-machine-configuration)
-                  :machine-configuration-cost (calculate-machine-configuration-cost
-                                                cheapest-machine-configuration)}]
-      (println (str "Cheapest cost of this smc is "
-                    (+ (:storage-configuration-cost result)
-                       (:machine-configuration-cost result))))
-      result)))
+  (let [cheapest-machine-configuration (find-cheapest-machine-configuration pool smc)]
+    (when (and csc cheapest-machine-configuration)
+      (let [result {:storage-configuration      csc
+                    :storage-configuration-cost (calculate-storage-configuration-cost csc scp)
+                    :machine-configuration      (remove-all-drive-arrays-from-machine-configuration
+                                                  cheapest-machine-configuration)
+                    :machine-configuration-cost (calculate-machine-configuration-cost
+                                                  cheapest-machine-configuration)}]
+        (println (str "Cheapest cost of this smc is "
+                      (+ (:storage-configuration-cost result)
+                         (:machine-configuration-cost result))))
+        result))))
 
 (defn- lowest-machine-count
   [{r-mc :machine-configuration :as r}
