@@ -6,39 +6,48 @@
 
 ; dac stands for drive array configuration
 
+; Create a list of list of numbers with (count target-size) elements adding up to the
+; number-drives specified. For example, with number-drives 10 and target-size w/ 2 elements, returns
+; ((2 8) (3 7) (4 6) (5 5) (6 4) (7 3) (8 2))
+; In this case, (2 8) and (8 2) are different because the first number refers to the first
+; distinct vm, and the second the second one...
+(defn- create-all-valid-vm-dac-drive-number-combinations [number-drives {:keys [target-size]}]
+  (filter #(= number-drives (apply + %))
+          (apply combo/cartesian-product
+                 (repeat (count target-size)
+                         (range 2 (inc number-drives))))))
+
+; valid drive arrays are drive arrays whose size evenly divides into the number of drives needed.
 (defn- extract-valid-drive-arrays [{:keys [all-drive-arrays]} number-drives-needed]
   (filter (fn [[{:keys [number-drives]}]]
             (= 0 (mod number-drives-needed number-drives)))
           all-drive-arrays))
 
+; The distinct portion is to account for the fact that an array of 3TB + 4TB drives is
+; the same as an array of 4TB + 3TB drives, all other aspects being equal (number of drives,
+; type of array, etc.)
 (defn- create-all-dacs-of-size-from-valid-drive-arrays [number-drives-needed valid-drive-arrays]
   (mapcat (fn [[{:keys [number-drives]} :as das]]
             (distinct (map (fn [dac] (sort-by :tib-50-percent dac))
                            (combo/selections das (/ number-drives-needed number-drives)))))
           valid-drive-arrays))
 
-(defn- create-all-valid-vm-dac-sizes [number-drives {:keys [target-size]}]
-  (filter #(= number-drives (apply + %))
-          (apply combo/cartesian-product
-                 (repeat (count target-size)
-                         (range 2 (inc number-drives))))))
+(defn- create-all-dacs-with-specified-number-of-drives [scp-for-one-component number-of-drives]
+  (let [vdas (extract-valid-drive-arrays scp-for-one-component number-of-drives)]
+    (create-all-dacs-of-size-from-valid-drive-arrays number-of-drives vdas)))
 
-(defn- create-all-dacs-of-size [scp-for-one-component number-drives-needed]
-  (let [vdas (extract-valid-drive-arrays scp-for-one-component number-drives-needed)]
-    (create-all-dacs-of-size-from-valid-drive-arrays number-drives-needed vdas)))
-
-(defn- create-all-vm-dacs-of-size [number-drives scp-for-one-component]
-  (let [all-drive-blocks (create-all-valid-vm-dac-sizes number-drives scp-for-one-component)]
+(defn- create-all-vm-dacs-with-specified-number-of-drives [scp-for-one-component number-of-drives]
+  (let [all-drive-blocks (create-all-valid-vm-dac-drive-number-combinations number-of-drives
+                                                                            scp-for-one-component)]
     (mapcat (fn [drive-block] (apply combo/cartesian-product
-                                     (map #(create-all-dacs-of-size scp-for-one-component %)
+                                     (map (partial create-all-dacs-with-specified-number-of-drives
+                                                   scp-for-one-component)
                                           drive-block)))
             all-drive-blocks)))
 
 (defn- create-all-vm-dacs [{:keys [max-number-drives target-size] :as scp-for-one-component}]
-  (mapcat (fn [number-drives]
-            (create-all-vm-dacs-of-size number-drives scp-for-one-component))
-          (range (* 2 (count target-size))
-                 (inc max-number-drives))))
+  (mapcat (partial create-all-vm-dacs-with-specified-number-of-drives scp-for-one-component)
+          (range (* 2 (count target-size)) (inc max-number-drives))))
 
 (defn- is-vm-dac-right? [{:keys [target-size] :as scp-for-one-component} percent-key vm-dac]
   (and (let [args (map list target-size vm-dac)]
