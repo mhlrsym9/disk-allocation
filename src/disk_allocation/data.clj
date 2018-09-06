@@ -90,13 +90,15 @@
   {:smc-pool smc-pool :lan-pool placeholder-machines :dmz-pool placeholder-machines})
 
 (defrecord Drive [drive-size can-be-two-point-five-drive drive-cost])
-(def one-tb-drive (Drive. 1 true (with-precision 4 (/ (+ 59.99M 65.27M) 2M))))              ; Ave NewEgg price 2018-09-03
-(def two-tb-drive (Drive. 2 false (with-precision 4 (/ (+ 77.44M 81.00M) 2M))))             ; Ave NewEgg price 2018-09-03
-(def three-tb-drive (Drive. 3 false (with-precision 4 (/ (+ 96.74M 101.59M) 2M))))          ; Ave NewEgg price 2018-09-03
+(def one-tb-drive (Drive. 1 true (with-precision 5 (/ (+ 59.99M 65.27M) 2M))))              ; Ave NewEgg price 2018-09-03
+(def two-tb-drive (Drive. 2 false (with-precision 5 (/ (+ 77.44M 81.00M) 2M))))             ; Ave NewEgg price 2018-09-03
+(def three-tb-drive (Drive. 3 false (with-precision 5 (/ (+ 96.74M 101.59M) 2M))))          ; Ave NewEgg price 2018-09-03
 (def four-tb-drive (Drive. 4 false (with-precision 5 (/ (+ 121.14M 124.99M 138.69M) 3.0M)))); Ave NewEgg price 2018-09-03
 (def six-tb-drive (Drive. 6 false (with-precision 5 (/ (+ 168.99M 184.46M 184.98M) 3M))))   ; Ave NewEgg price 2018-09-03
-(def eight-tb-drive (Drive. 8 false 239.99M))                                               ; NewEgg flyer ends 2018-09-04
-(def ten-tb-drive (Drive. 10 false (with-precision 5 (/ (+ 299.00M 304.27M 330.70M) 3M))))  ; Ave NewEgg price 2018-09-03
+(def eight-tb-drive (Drive. 8 false (with-precision 5 (/ (+ 241.02M 245.49M 264.99M) 3M)))) ; Ave NewEgg price 2018-09-05
+;(def eight-tb-drive (Drive. 8 false 239.99M))                                               ; NewEgg flyer ends 2018-09-04
+;(def ten-tb-drive (Drive. 10 false (with-precision 5 (/ (+ 299.00M 304.27M 330.70M) 3M))))  ; Ave NewEgg price 2018-09-03
+(def ten-tb-drive (Drive. 10 false 284.99M))                                                ; NewEgg sale ends 2018-09-06
 (def twelve-tb-drive (Drive. 12 false 399.89M))                                             ; NewEgg price 2018-09-03
 
 (defrecord DriveArray [array-name number-drives tib-50-percent tib-80-percent drive])

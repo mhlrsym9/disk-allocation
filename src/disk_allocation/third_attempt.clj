@@ -360,10 +360,28 @@
              (when (seq cheapest-storage-systems)
                (find-cheapest-storage-system "smcl" cheapest-storage-systems)))))
 
+(defn- by-two-point-five-drives-max-number-drives [l r]
+  (compare [(:number-two-point-five-drives l) (:max-number-drives l)]
+           [(:number-two-point-five-drives r) (:max-number-drives r)]))
+
+(defn by-scp [l r]
+  (let [c (some (fn [[il ir]]
+                  (let [c (by-two-point-five-drives-max-number-drives il ir)]
+                    (if (not= 0 c) c nil)))
+                (map (fn [il ir] (list il ir)) l r))]
+    (if c
+      (do
+        (println (str "Comparator returns " c))
+        c)
+      (do
+        (println "comparator returns 0")
+        0))))
+
 (defn- find-the-cheapest-system-for-this-storage-machine-configuration-list [{:keys [smc-pool] :as pool}]
-  (let [all-needed-storage-configuration-patterns (apply hash-set
-                                                         (map utils/generate-storage-machine-configuration-pattern-v3
-                                                              smc-pool))
+  (let [all-needed-storage-configuration-patterns (sort by-scp
+                                                        (apply hash-set
+                                                               (map utils/generate-storage-machine-configuration-pattern-v3
+                                                                    smc-pool)))
         futures-list (doall (map (fn [scp] (future (find-the-cheapest-storage-configuration scp)))
                                  all-needed-storage-configuration-patterns))
         cheapest-storage-configurations (into (hash-map)
