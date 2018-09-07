@@ -106,7 +106,8 @@
                         (rest remaining-storage-configurations))
             csc (reduce (fn [[cheapest-cost-sc cheapest-sc :as cheapest] sc]
                           (let [cost-sc (calculate-storage-configuration-cost sc scp)]
-                            (cond (< cost-sc cheapest-cost-sc) (list cost-sc sc)
+                            (cond (nil? cheapest-cost-sc) (list cost-sc sc)
+                                  (< cost-sc cheapest-cost-sc) (list cost-sc sc)
                                   (< cheapest-cost-sc cost-sc) cheapest
                                   :else (let [n-cheapest-sc (total-number-drives-in-storage-configuration cheapest-sc)
                                               n-sc (total-number-drives-in-storage-configuration sc)]
@@ -116,9 +117,6 @@
                         start-cost
                         remaining)]
         (println (str "Cheapest storage configuration found costs " (first csc)))
-        (println (str "c1 " (count all-storage-configurations)
-                      " c2 " (count all-smaller-storage-configurations)
-                      " c3 " (count remaining-storage-configurations)))
         (second csc)))))
 
 (defn- ^{:clojure.core.memoize/args-fn first}
@@ -321,21 +319,20 @@
       c
       0)))
 
-(defn- prepopulate-cheapest-storage-configurations [{:keys [smc-pool] :as pool}]
-  (let [unique-sorted-storage-configuration-patterns (sort by-scp
-                                                           (apply hash-set
-                                                                  (map utils/generate-storage-machine-configuration-pattern-v3
-                                                                       smc-pool)))
-        scp-pairs (mapcat (fn [scp-coll] (partition 2 1 (list nil) scp-coll))
-                          (partition-by (fn [scp] (map :number-two-point-five-drives scp))
-                                        unique-sorted-storage-configuration-patterns))
-        futures-list (doall (map (fn [[s l]]
-                                   (future (let [s-csc (find-cheapest-storage-configuration s nil nil)]
-                                             (if l
-                                               (list (find-cheapest-storage-configuration l s s-csc) l)
-                                               (list s-csc s)))))
-                                 scp-pairs))]
-    (filter identity (map (fn [[csc scp]] (calculate-storage-configuration-cost @csc scp)) (map deref futures-list)))))
+(defn- pre-populate-cheapest-storage-configurations [{:keys [smc-pool]}]
+  (let [unique-storage-configuration-patterns (apply hash-set
+                                                     (map utils/generate-storage-machine-configuration-pattern-v3
+                                                          smc-pool))
+        scp-chains (partition-by (fn [scp] (map :number-two-point-five-drives scp))
+                                 (sort by-scp unique-storage-configuration-patterns))
+        futures-list (doall (map (fn [scp-chain]
+                                   (future (reduce (fn [[previous-csc previous-scp] scp]
+                                                     (list (find-cheapest-storage-configuration scp previous-scp previous-csc) scp))
+                                                   nil scp-chain)))
+                                 scp-chains))]
+    (filter identity
+            (map (fn [[csc scp]] (calculate-storage-configuration-cost @csc scp))
+                 (map deref futures-list)))))
 
 (defn- find-cheapest-storage-system-for-this-storage-machine-configuration [scp csc pool smc]
   (let [cheapest-machine-configuration (find-cheapest-machine-configuration pool smc)
