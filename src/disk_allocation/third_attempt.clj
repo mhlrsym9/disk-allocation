@@ -2,8 +2,7 @@
   (:use [disk-allocation.data])
   (:require [disk-allocation.utilities :as utils])
   (:require [clojure.math.combinatorics :as combo])
-  (:require [clojure.core.memoize :as m]
-            [clojure.set :as set])
+  (:require [clojure.core.memoize :as m])
   (:import (disk_allocation.data Machine)))
 
 ; dac stands for drive array configuration
@@ -83,7 +82,6 @@
   (reduce (fn [r vm-dac] (+ r (total-number-drives-in-vm-dac vm-dac))) 0 sc))
 
 (defn- find-the-cheapest-storage-configuration [scp smaller-scp smaller-csc]
-  (comment (println (map #(dissoc % :all-drive-arrays) scp)))
   (let [create-all-drive-block-combinations-fn (fn [scp-for-one-component]
                                                  (create-all-drive-block-combinations
                                                    scp-for-one-component))
@@ -100,9 +98,6 @@
                                                                  scp dcc)))
                                            remaining-drive-block-combinations)]
     (when (seq all-storage-configurations)
-      (comment (println (str "c1 count " (count all-drive-block-combinations)
-                             " c2 count " (count all-smaller-drive-block-combinations)
-                             " c3 count " (count remaining-drive-block-combinations))))
       (let [start-cost (if smaller-csc
                          (list (calculate-storage-configuration-cost smaller-csc smaller-scp)
                                smaller-csc)
@@ -113,9 +108,10 @@
                         (rest all-storage-configurations))
             csc (reduce (fn [[cheapest-cost-sc cheapest-sc :as cheapest] sc]
                           (let [cost-sc (calculate-storage-configuration-cost sc scp)]
-                            (cond (nil? cheapest-cost-sc) (list cost-sc sc)
-                                  (< cost-sc cheapest-cost-sc) (list cost-sc sc)
+                            (cond (nil? cost-sc) cheapest-cost-sc
+                                  (nil? cheapest-cost-sc) (list cost-sc sc)
                                   (< cheapest-cost-sc cost-sc) cheapest
+                                  (< cost-sc cheapest-cost-sc) (list cost-sc sc)
                                   :else (let [n-cheapest-sc (total-number-drives-in-storage-configuration cheapest-sc)
                                               n-sc (total-number-drives-in-storage-configuration sc)]
                                           (if (< n-sc n-cheapest-sc)
@@ -123,8 +119,9 @@
                                             cheapest)))))
                         start-cost
                         remaining)]
-        (println (str "Cheapest storage configuration found costs " (first csc)))
-        (comment (println (str "c4 count " (count all-storage-configurations))))
+        (if (first csc)
+          (println (str "Cheapest storage configuration found costs " (first csc)))
+          (println "No cheapest storage configuration found!"))
         (second csc)))))
 
 (defn- ^{:clojure.core.memoize/args-fn first}
@@ -168,13 +165,22 @@
                                    (future (reduce (fn [[previous-csc previous-scp] scp]
                                                      (list (find-cheapest-storage-configuration scp previous-scp (when previous-csc @previous-csc)) scp))
                                                    nil scp-chain)))
-                                 scp-chains))]
-    (reduce (fn [r v] (let [[csc scp] @v
-                            storage-configuration-cost (calculate-storage-configuration-cost @csc scp)]
-                        (if storage-configuration-cost
-                          (+ r storage-configuration-cost)
-                          r)))
-            0.00M futures-list)))
+                                 scp-chains))
+        cheapest-storage-configuration (reduce (fn [r v]
+                                                 (let [[r-csc r-scp] @r
+                                                       [v-csc v-scp] @v
+                                                       r-cost (calculate-storage-configuration-cost @r-csc r-scp)
+                                                       v-cost (calculate-storage-configuration-cost @v-csc v-scp)]
+                                                   (cond (nil? r-cost) v
+                                                         (nil? v-cost) r
+                                                         (< v-cost r-cost) v
+                                                         :else r)))
+                                               (future (list (future nil) nil))
+                                               futures-list)]
+    (if (deref (first (deref cheapest-storage-configuration)))
+      (println (str "Cheapest storage configuration costs "
+                    (calculate-storage-configuration-cost (deref (first (deref cheapest-storage-configuration)))
+                                                          (second (deref cheapest-storage-configuration))))))))
 
 (defn- extract-machines-of-type [type machines]
   (filter #(= type (:type %)) machines))
@@ -398,8 +404,7 @@
 (defn- find-the-cheapest-system-for-this-storage-machine-configuration-list [{:keys [smc-pool] :as pool}]
   (pre-populate-cheapest-storage-configurations pool)
   (let [cheapest-fnc (partial find-cheapest-storage-system-for-this-storage-machine-configuration pool)
-        futures-list (doall (map #(future (cheapest-fnc %)) smc-pool))
-        cheapest-storage-systems (filter identity (map deref futures-list))]
+        cheapest-storage-systems (filter identity (map cheapest-fnc smc-pool))]
     (when (seq cheapest-storage-systems)
       (find-cheapest-storage-system "smcl" cheapest-storage-systems))))
 
