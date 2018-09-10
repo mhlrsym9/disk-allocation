@@ -88,20 +88,18 @@
                        :tib-50-percent)
               scp dcc)))
 
-(defn- csc-reducer
-  ([_] {:cheapest-cost-sc nil :cheapest-sc nil})
-  ([scp {:keys [cheapest-cost-sc cheapest-sc] :as cheapest} sc]
-   (let [cost-sc (calculate-storage-configuration-cost sc scp)
-         new-val {:cheapest-cost-sc cost-sc :cheapest-sc sc}]
-     (cond (nil? cheapest-cost-sc) new-val
-           (nil? cost-sc) cheapest
-           (< cost-sc cheapest-cost-sc) new-val
-           (< cheapest-cost-sc cost-sc) cheapest
-           :else (let [n-cheapest-sc (total-number-drives-in-storage-configuration cheapest-sc)
-                       n-sc (total-number-drives-in-storage-configuration sc)]
-                   (if (< n-sc n-cheapest-sc)
-                     new-val
-                     cheapest))))))
+(defn- csc-reducer [scp {:keys [cheapest-cost-sc cheapest-sc] :as cheapest} sc]
+  (let [cost-sc (calculate-storage-configuration-cost sc scp)
+        new-val {:cheapest-cost-sc cost-sc :cheapest-sc sc}]
+    (cond (nil? cheapest-cost-sc) new-val
+          (nil? cost-sc) cheapest
+          (< cost-sc cheapest-cost-sc) new-val
+          (< cheapest-cost-sc cost-sc) cheapest
+          :else (let [n-cheapest-sc (total-number-drives-in-storage-configuration cheapest-sc)
+                      n-sc (total-number-drives-in-storage-configuration sc)]
+                  (if (< n-sc n-cheapest-sc)
+                    new-val
+                    cheapest)))))
 
 (defn- csc-combiner
   ([] {:cheapest-cost-sc nil :cheapest-sc nil})
@@ -154,23 +152,22 @@ find-the-cheapest-storage-configuration [scp smaller-scp smaller-csc]
       c
       0)))
 
-(defn- scp-chain-reducer
-  ([] {:csc nil :scp nil})
-  ([_ scp-chain]
-   (reduce (fn [{previous-csc :csc, previous-scp :scp} scp]
-             {:csc (find-cheapest-storage-configuration scp previous-scp previous-csc) :scp scp})
-           {:csc nil :scp nil}
-           scp-chain)))
+(defn- scp-chain-reducer [_ scp-chain]
+  (reduce (fn [{previous-csc :csc, previous-scp :scp} scp]
+            {:csc (find-cheapest-storage-configuration scp previous-scp previous-csc) :scp scp})
+          {:csc nil :scp nil}
+          scp-chain))
 
 (defn- scp-chain-combiner
   ([] {:csc nil :scp nil})
-  ([{r-csc :csc r-scp :scp, :as r} {v-csc :csc, v-scp :scp, :as v}]
-    (let [r-cost (calculate-storage-configuration-cost r-csc r-scp)
-          v-cost (calculate-storage-configuration-cost v-csc v-scp)]
-      (cond (nil? r-cost) v
-            (nil? v-cost) r
-            (< v-cost r-cost) v
-            :else r))))
+  ([& m] (reduce (fn [{r-csc :csc r-scp :scp, :as r} {v-csc :csc, v-scp :scp, :as v}]
+                   (let [r-cost (calculate-storage-configuration-cost r-csc r-scp)
+                         v-cost (calculate-storage-configuration-cost v-csc v-scp)]
+                     (cond (nil? r-cost) v
+                           (nil? v-cost) r
+                           (< v-cost r-cost) v
+                           :else r)))
+                {:cheapest-cost-sc nil :cheapest-sc nil} m)))
 
 (defn- pre-populate-cheapest-storage-configurations [{:keys [smc-pool]}]
   (let [unique-storage-configuration-patterns (apply hash-set
@@ -178,7 +175,10 @@ find-the-cheapest-storage-configuration [scp smaller-scp smaller-csc]
                                                           smc-pool))
         scp-chains (vec (partition-by (fn [scp] (map :number-two-point-five-drives scp))
                                       (sort by-scp unique-storage-configuration-patterns)))
-        cheapest-storage-configuration (r/fold 2 scp-chain-combiner scp-chain-reducer scp-chains)]
+        cheapest-storage-configuration (r/fold (int (/ (count scp-chains) 6))
+                                               scp-chain-combiner
+                                               scp-chain-reducer
+                                               scp-chains)]
     (if (:csc cheapest-storage-configuration)
       (println (str "Cheapest storage configuration costs "
                     (calculate-storage-configuration-cost (:csc cheapest-storage-configuration)
