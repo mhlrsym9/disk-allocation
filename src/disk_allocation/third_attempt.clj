@@ -175,7 +175,7 @@ find-the-cheapest-storage-configuration [scp smaller-scp smaller-csc]
                                                           smc-pool))
         scp-chains (vec (partition-by (fn [scp] (map :number-two-point-five-drives scp))
                                       (sort by-scp unique-storage-configuration-patterns)))
-        cheapest-storage-configuration (r/fold (int (/ (count scp-chains) 6))
+        cheapest-storage-configuration (r/fold (int (max 2 (/ (count scp-chains) 6)))
                                                scp-chain-combiner
                                                scp-chain-reducer
                                                scp-chains)]

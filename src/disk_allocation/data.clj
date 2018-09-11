@@ -94,11 +94,12 @@
 (def two-tb-drive (Drive. 2 false (with-precision 5 (/ (+ 77.44M 81.00M) 2M))))             ; Ave NewEgg price 2018-09-03
 (def three-tb-drive (Drive. 3 false (with-precision 5 (/ (+ 96.74M 101.59M) 2M))))          ; Ave NewEgg price 2018-09-03
 (def four-tb-drive (Drive. 4 false (with-precision 5 (/ (+ 121.14M 124.99M 138.69M) 3.0M)))); Ave NewEgg price 2018-09-03
-(def six-tb-drive (Drive. 6 false (with-precision 5 (/ (+ 168.99M 184.46M 184.98M) 3M))))   ; Ave NewEgg price 2018-09-03
+;(def six-tb-drive (Drive. 6 false (with-precision 5 (/ (+ 168.99M 184.46M 184.98M) 3M))))  ; Ave NewEgg price 2018-09-03
+(def six-tb-drive (Drive. 6 false 150.00M))                                                 ; NewEgg sale ends 2018-09-11
 (def eight-tb-drive (Drive. 8 false (with-precision 5 (/ (+ 241.02M 245.49M 264.99M) 3M)))) ; Ave NewEgg price 2018-09-05
-;(def eight-tb-drive (Drive. 8 false 239.99M))                                               ; NewEgg flyer ends 2018-09-04
-;(def ten-tb-drive (Drive. 10 false (with-precision 5 (/ (+ 299.00M 304.27M 330.70M) 3M))))  ; Ave NewEgg price 2018-09-03
-(def ten-tb-drive (Drive. 10 false 284.99M))                                                ; NewEgg sale ends 2018-09-06
+;(def eight-tb-drive (Drive. 8 false 239.99M))                                              ; NewEgg flyer ends 2018-09-04
+(def ten-tb-drive (Drive. 10 false (with-precision 5 (/ (+ 299.00M 304.27M 330.70M) 3M))))  ; Ave NewEgg price 2018-09-03
+;(def ten-tb-drive (Drive. 10 false 284.99M))                                               ; NewEgg sale ends 2018-09-06
 (def twelve-tb-drive (Drive. 12 false 399.89M))                                             ; NewEgg price 2018-09-03
 
 (defrecord DriveArray [array-name number-drives tib-50-percent tib-80-percent drive])
@@ -275,15 +276,13 @@
 
 (def all-small-drive-arrays (list raid-one-z-three-drive-arrays
                                   raid-one-z-four-drive-arrays
-                                  raid-one-z-five-drive-arrays
                                   mirror-drive-arrays))
 
 (def all-raid-two-z-drive-arrays (list raid-two-z-five-drive-arrays
                                        raid-two-z-six-drive-arrays
                                        raid-two-z-seven-drive-arrays
                                        raid-two-z-eight-drive-arrays
-                                       raid-two-z-nine-drive-arrays
-                                       raid-two-z-ten-drive-arrays))
+                                       raid-two-z-nine-drive-arrays))
 
 (def all-drive-arrays (concat all-small-drive-arrays all-raid-two-z-drive-arrays))
 
