@@ -33,31 +33,29 @@
 ; the same as an array of 4TB + 3TB drives, all other aspects being equal (number of drives,
 ; type of array, etc.)
 (defn- create-all-dacs-of-size-from-valid-drive-arrays
-  [percent-key number-drives-needed valid-drive-arrays]
+  [number-drives-needed valid-drive-arrays]
   (mapcat (fn [[{:keys [number-drives]} :as das]]
-            (distinct (map (fn [dac] (sort-by percent-key dac))
+            (distinct (map (fn [dac] (sort-by :tib-50-percent dac))
                            (combo/selections das (/ number-drives-needed number-drives)))))
           valid-drive-arrays))
 
-(defn- create-all-dacs-with-specified-number-of-drives [percent-key scp number-of-drives]
+(defn- create-all-dacs-with-specified-number-of-drives [scp number-of-drives]
   (let [vdas (extract-valid-drive-arrays scp number-of-drives)]
-    (create-all-dacs-of-size-from-valid-drive-arrays percent-key number-of-drives vdas)))
+    (create-all-dacs-of-size-from-valid-drive-arrays number-of-drives vdas)))
 
-(defn- create-all-vm-dacs-for-one-component [percent-key scp drive-block]
-  (apply combo/cartesian-product (map (partial create-all-dacs-with-specified-number-of-drives
-                                               percent-key
-                                               scp)
+(defn- create-all-vm-dacs-for-one-component [scp drive-block]
+  (apply combo/cartesian-product (map (partial create-all-dacs-with-specified-number-of-drives scp)
                                       drive-block)))
 
-(defn- is-vm-dac-right? [{:keys [target-size] :as scp-for-one-component} percent-key vm-dac]
+(defn- is-vm-dac-right? [percent-key {:keys [target-size] :as scp-for-one-component} vm-dac]
   (and (let [args (map list target-size vm-dac)]
          (every? #(utils/is-dac-right-size? (first %) (second %) percent-key) args))
        (utils/does-dac-have-right-physical-drive-size-configuration? scp-for-one-component
                                                                      (apply concat vm-dac))))
 
 (defn- create-all-valid-vm-dacs-for-one-component [percent-key scp drive-block]
-  (filter (partial is-vm-dac-right? scp percent-key)
-          (create-all-vm-dacs-for-one-component percent-key scp drive-block)))
+  (filter (partial is-vm-dac-right? percent-key scp)
+          (create-all-vm-dacs-for-one-component scp drive-block)))
 
 (defn- dac-cost [dac]
   (reduce (fn [r {:keys [number-drives], {:keys [drive-cost]} :drive}]
