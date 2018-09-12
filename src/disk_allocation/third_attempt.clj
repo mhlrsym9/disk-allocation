@@ -110,34 +110,28 @@
                  {:cheapest-cost-sc nil :cheapest-sc nil} m)))
 
 (defn- ^{:clojure.core.memoize/args-fn first}
-find-the-cheapest-storage-configuration [scp smaller-scp smaller-csc]
+find-the-cheapest-storage-configuration [scp smaller-scp]
   (let [all-drive-block-combinations (apply combo/cartesian-product
                                             (map create-all-drive-block-combinations scp))
         all-smaller-drive-block-combinations (apply combo/cartesian-product
                                                     (map create-all-drive-block-combinations smaller-scp))
-        remaining-drive-block-combinations (vec (apply disj
-                                                       (set all-drive-block-combinations)
-                                                       all-smaller-drive-block-combinations))
+        remaining-drive-block-combinations (apply disj
+                                                  (set all-drive-block-combinations)
+                                                  all-smaller-drive-block-combinations)
         csc-pair (->> remaining-drive-block-combinations
-                      (r/mapcat (partial create-storage-configuration scp))
-                      (r/fold csc-combiner (partial csc-reducer scp)))
-        smaller-csc-pair {:cheapest-cost-sc (calculate-storage-configuration-cost smaller-csc smaller-scp)
-                          :cheapest-sc smaller-csc}
-        final-csc (cond (nil? (:cheapest-cost-sc smaller-csc-pair)) csc-pair
-                        (nil? (:cheapest-cost-sc csc-pair)) smaller-csc-pair
-                        (< (:cheapest-cost-sc csc-pair) (:cheapest-cost-sc smaller-csc-pair)) csc-pair
-                        :else smaller-csc-pair)]
-    (if (:cheapest-cost-sc final-csc)
-      (println (str "Cheapest storage configuration found costs " (:cheapest-cost-sc final-csc)))
+                      (mapcat (partial create-storage-configuration scp))
+                      (r/fold csc-combiner (partial csc-reducer scp)))]
+    (if (:cheapest-cost-sc csc-pair)
+      (println (str "Cheapest storage configuration found costs " (:cheapest-cost-sc csc-pair)))
       (println (str "No configuration found!")))
-    (:cheapest-sc final-csc)))
+    (:cheapest-sc csc-pair)))
 
 (def find-the-cheapest-storage-configuration-memo (m/memo #'find-the-cheapest-storage-configuration))
 
 (defn find-cheapest-storage-configuration
-  ([scp] (find-cheapest-storage-configuration scp nil nil))
-  ([scp smaller-scp smaller-csc-ref]
-   (find-the-cheapest-storage-configuration-memo scp smaller-scp smaller-csc-ref)))
+  ([scp] (find-cheapest-storage-configuration scp nil))
+  ([scp smaller-scp]
+   (find-the-cheapest-storage-configuration-memo scp smaller-scp)))
 
 (defn- by-two-point-five-drives-max-number-drives [l r]
   (compare [(:number-two-point-five-drives l) (:max-number-drives l)]
@@ -153,8 +147,8 @@ find-the-cheapest-storage-configuration [scp smaller-scp smaller-csc]
       0)))
 
 (defn- scp-chain-reducer [_ scp-chain]
-  (reduce (fn [{previous-csc :csc, previous-scp :scp} scp]
-            {:csc (find-cheapest-storage-configuration scp previous-scp previous-csc) :scp scp})
+  (reduce (fn [{previous-scp :scp} scp]
+            {:csc (find-cheapest-storage-configuration scp previous-scp) :scp scp})
           {:csc nil :scp nil}
           scp-chain))
 
