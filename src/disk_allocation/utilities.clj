@@ -11,23 +11,23 @@
     true))
 
 (defn- calculate-dac-size [dac percent-key]
-  (reduce (fn [r da] (+ r (percent-key da))) 0.0M dac))
+  (reduce (fn [r da] (+ r (percent-key da))) 0.0 dac))
 
 (defn is-dac-right-size? [target-size dac percent-key]
   (let [dac-size (calculate-dac-size dac percent-key)]
     (cond
       (= target-size lan-client-target-size) (and (<= lan-client-target-size dac-size)
-                                                  (<= dac-size (* 1.2M lan-client-target-size)))
+                                                  (<= dac-size (* 1.2 lan-client-target-size)))
       (= target-size lan-server-target-size) (and (<= lan-server-target-size dac-size)
-                                                  (<= dac-size (* 1.2M lan-server-target-size)))
+                                                  (<= dac-size (* 1.2 lan-server-target-size)))
       (= target-size lan-combined-target-size) (and (<= lan-combined-target-size dac-size)
-                                                    (<= dac-size (* 1.1M lan-combined-target-size)))
+                                                    (<= dac-size (* 1.1 lan-combined-target-size)))
       (= target-size dmz-client-target-size) (and (<= dmz-client-target-size dac-size)
-                                                  (<= dac-size (* 6.0M dmz-client-target-size)))
+                                                  (<= dac-size (* 6.0 dmz-client-target-size)))
       (= target-size dmz-server-target-size) (and (<= dmz-server-target-size dac-size)
-                                                  (<= dac-size (* 2.0M dmz-server-target-size)))
+                                                  (<= dac-size (* 2.0 dmz-server-target-size)))
       (= target-size dmz-combined-target-size) (and (<= dmz-combined-target-size dac-size)
-                                                    (<= dac-size (* 2.0M dmz-combined-target-size)))
+                                                    (<= dac-size (* 2.0 dmz-combined-target-size)))
       :else (<= target-size dac-size))))
 
 (defn- number-of-two-point-five-drives-in-dac [dac]

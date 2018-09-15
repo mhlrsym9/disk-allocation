@@ -103,13 +103,21 @@
                     new-val
                     cheapest)))))
 
+(defn- reduce-csc-pairs [pairs]
+  (reduce (fn [{r-cost-sc :cheapest-cost-sc, :as r} {v-cost-sc :cheapest-cost-sc, :as v}]
+            (cond (nil? r-cost-sc) v
+                  (nil? v-cost-sc) r
+                  (< v-cost-sc r-cost-sc) v
+                  :else r))
+          {:cheapest-cost-sc nil :cheapest-sc nil}
+          pairs))
+
 (defn- csc-combiner
   ([] {:cheapest-cost-sc nil :cheapest-sc nil})
-  ([& m] (reduce (fn [r v] (cond (nil? (:cheapest-cost-sc v)) r
-                                 (nil? (:cheapest-cost-sc r)) v
-                                 (< (:cheapest-cost-sc r) (:cheapest-cost-sc v)) r
-                                 :else v))
-                 {:cheapest-cost-sc nil :cheapest-sc nil} m)))
+  ([& m] (reduce-csc-pairs m)))
+
+(defn- locate-cheapest-storage-configuration-in-partition [scp p]
+  (r/fold csc-combiner (partial csc-reducer scp) (vec p)))
 
 (defn- ^{:clojure.core.memoize/args-fn first}
 find-the-cheapest-storage-configuration
@@ -123,12 +131,12 @@ find-the-cheapest-storage-configuration
                                                   all-smaller-drive-block-combinations)
         the-storage-configurations (mapcat (partial create-storage-configuration scp)
                                            remaining-drive-block-combinations)
-        csc-pair (r/fold csc-combiner
-                         (partial csc-reducer scp)
-                         the-storage-configurations)]
+        the-cheapest-storage-configuration-pairs (map (partial locate-cheapest-storage-configuration-in-partition scp)
+                                                       (partition-all 100000 the-storage-configurations))
+        csc-pair (reduce-csc-pairs the-cheapest-storage-configuration-pairs)]
     (if (:cheapest-cost-sc csc-pair)
       (println (str "Cheapest storage configuration found costs " (:cheapest-cost-sc csc-pair)))
-      (println (str "No configuration found!")))
+      (println "No configuration found!"))
     (:cheapest-sc csc-pair)))
 
 (def find-the-cheapest-storage-configuration-memo (m/memo #'find-the-cheapest-storage-configuration))
@@ -182,8 +190,7 @@ find-the-cheapest-storage-configuration
 (defn- pre-populate-cheapest-storage-configurations [all-unique-scps]
   (let [scp-chains (vec (partition-by (fn [scp] (map :number-two-point-five-drives scp))
                                       (sort by-scp all-unique-scps)))
-        cheapest-storage-configuration (r/fold (int (max 2 (/ (count scp-chains) 18)))
-                                               scp-chain-combiner
+        cheapest-storage-configuration (r/fold scp-chain-combiner
                                                scp-chain-reducer
                                                scp-chains)]
     (if (:csc cheapest-storage-configuration)
