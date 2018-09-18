@@ -104,10 +104,10 @@
                     n-v-sc (total-number-drives-in-storage-configuration v-sc)]
                 (if (< n-v-sc n-r-sc) v r))))
 
-(defn- csc-reducer [scp {:keys [cheapest-cost-sc cheapest-sc] :as cheapest} sc]
+(defn- csc-reducer [scp cheapest-sc-so-far sc]
   (let [cost-sc (calculate-storage-configuration-cost sc scp)
         new-val {:cheapest-cost-sc cost-sc :cheapest-sc sc}]
-    (determine-cheaper-storage-configuration cheapest new-val)))
+    (determine-cheaper-storage-configuration cheapest-sc-so-far new-val)))
 
 (defn- reduce-csc-pairs [pairs]
   (reduce determine-cheaper-storage-configuration
