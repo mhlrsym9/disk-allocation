@@ -129,10 +129,10 @@ find-the-cheapest-storage-configuration
         remaining-drive-block-combinations (apply disj
                                                   (set all-drive-block-combinations)
                                                   all-smaller-drive-block-combinations)
-        the-storage-configurations (mapcat (partial create-storage-configuration scp)
+        the-storage-configurations (map (partial create-storage-configuration scp)
                                            remaining-drive-block-combinations)
         the-cheapest-storage-configuration-pairs (map (partial locate-cheapest-storage-configuration-in-partition scp)
-                                                       (partition-all 100000 the-storage-configurations))
+                                                       the-storage-configurations)
         csc-pair (reduce-csc-pairs the-cheapest-storage-configuration-pairs)]
     (if (:cheapest-cost-sc csc-pair)
       (println (str "Cheapest storage configuration found costs " (:cheapest-cost-sc csc-pair)))
