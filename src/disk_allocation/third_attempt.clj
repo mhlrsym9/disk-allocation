@@ -57,10 +57,6 @@
        (utils/does-dac-have-right-physical-drive-size-configuration? scp-for-one-component
                                                                      (apply concat vm-dac))))
 
-(defn- create-all-valid-vm-dacs-for-one-component [percent-key scp-for-one-component drive-block]
-  (filter (partial is-vm-dac-right? percent-key scp-for-one-component)
-          (create-all-vm-dacs-for-one-component scp-for-one-component drive-block)))
-
 (defn- dac-cost [dac]
   (reduce (fn [r {:keys [number-drives], {:keys [drive-cost]} :drive}]
             (+ r (* number-drives drive-cost)))
@@ -69,6 +65,24 @@
 
 (defn- vm-dac-cost [vm-dac]
   (reduce (fn [r dac] (+ r (dac-cost dac))) 0.00M vm-dac))
+
+(defn- create-all-valid-vm-dacs-for-one-component [percent-key scp-for-one-component drive-block]
+  (let [initial-vm-dacs (filter (partial is-vm-dac-right? percent-key scp-for-one-component)
+                                (create-all-vm-dacs-for-one-component scp-for-one-component drive-block))
+        vm-dacs-with-one-or-four-tb-drives (filter (fn [vm-dac] (let [drives (map #(+ (utils/number-drives-in-dac one-tb-drive %)
+                                                                                      (utils/number-drives-in-dac four-tb-drive %))
+                                                                                  vm-dac)]
+                                                                  (some #(not= 0 %) drives)))
+                                                   initial-vm-dacs)
+        all-other-vm-dacs (remove (set vm-dacs-with-one-or-four-tb-drives) initial-vm-dacs)
+        cheapest-vm-dac (reduce (fn [r v] (cond (nil? r) v
+                                                (nil? v) r
+                                                :else (let [r-cost (vm-dac-cost r)
+                                                            v-cost (vm-dac-cost v)]
+                                                        (if (< v-cost r-cost) v r))))
+                                nil
+                                all-other-vm-dacs)]
+    (filter identity (cons cheapest-vm-dac vm-dacs-with-one-or-four-tb-drives))))
 
 (defn- calculate-drive-adjustment-with-vm-dacs [sc scp]
   (utils/calculate-drive-adjustment (map (fn [vm-dac] (apply concat vm-dac)) sc) scp))

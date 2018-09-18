@@ -98,7 +98,7 @@
 (defn generate-storage-machine-configuration-pattern-v3 [smc]
   (map generate-machine-configuration-pattern-v3 smc))
 
-(defn- number-drives-in-dac [{:keys [drive-size]} dac]
+(defn number-drives-in-dac [{:keys [drive-size]} dac]
   (reduce (fn [r da] (+ r (if (= drive-size (:drive-size (:drive da)))
                             (:number-drives da)
                             0))) 0 dac))
