@@ -90,25 +90,27 @@
                        :tib-50-percent)
               scp drive-block-combination)))
 
+(defn- determine-cheaper-storage-configuration [{r-cost-sc :cheapest-cost-sc,
+                                                 r-sc :cheapest-sc,
+                                                 :as r}
+                                                {v-cost-sc :cheapest-cost-sc,
+                                                 v-sc :cheapest-sc,
+                                                 :as v}]
+  (cond (nil? r-cost-sc) v
+        (nil? v-cost-sc) r
+        (< v-cost-sc r-cost-sc) v
+        (< r-cost-sc v-cost-sc) r
+        :else (let [n-r-sc (total-number-drives-in-storage-configuration r-sc)
+                    n-v-sc (total-number-drives-in-storage-configuration v-sc)]
+                (if (< n-v-sc n-r-sc) v r))))
+
 (defn- csc-reducer [scp {:keys [cheapest-cost-sc cheapest-sc] :as cheapest} sc]
   (let [cost-sc (calculate-storage-configuration-cost sc scp)
         new-val {:cheapest-cost-sc cost-sc :cheapest-sc sc}]
-    (cond (nil? cheapest-cost-sc) new-val
-          (nil? cost-sc) cheapest
-          (< cost-sc cheapest-cost-sc) new-val
-          (< cheapest-cost-sc cost-sc) cheapest
-          :else (let [n-cheapest-sc (total-number-drives-in-storage-configuration cheapest-sc)
-                      n-sc (total-number-drives-in-storage-configuration sc)]
-                  (if (< n-sc n-cheapest-sc)
-                    new-val
-                    cheapest)))))
+    (determine-cheaper-storage-configuration cheapest new-val)))
 
 (defn- reduce-csc-pairs [pairs]
-  (reduce (fn [{r-cost-sc :cheapest-cost-sc, :as r} {v-cost-sc :cheapest-cost-sc, :as v}]
-            (cond (nil? r-cost-sc) v
-                  (nil? v-cost-sc) r
-                  (< v-cost-sc r-cost-sc) v
-                  :else r))
+  (reduce determine-cheaper-storage-configuration
           {:cheapest-cost-sc nil :cheapest-sc nil}
           pairs))
 
