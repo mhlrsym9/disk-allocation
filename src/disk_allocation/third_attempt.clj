@@ -4,6 +4,7 @@
   (:require [clojure.math.combinatorics :as combo])
   (:require [clojure.core.memoize :as m])
   (:require [clojure.core.reducers :as r])
+  (:require [clojure.string :as str])
   (:import (disk_allocation.data Machine)))
 
 ; dac stands for drive array configuration
@@ -110,11 +111,10 @@
 (defn- total-number-drives-in-storage-configuration [sc]
   (reduce (fn [r vm-dac] (+ r (total-number-drives-in-vm-dac vm-dac))) 0 sc))
 
-(defn- create-storage-configuration [scp drive-block-combination]
-  (apply combo/cartesian-product
-         (map (partial create-all-valid-vm-dacs-for-one-component
-                       :tib-50-percent)
-              scp drive-block-combination)))
+(defn- generate-all-possible-storage-configurations [scp drive-block-combination]
+  (map (partial create-all-valid-vm-dacs-for-one-component
+                :tib-50-percent)
+       scp drive-block-combination))
 
 (defn- determine-cheaper-storage-configuration [{r-cost-sc :cheapest-cost-sc,
                                                  r-sc :cheapest-sc,
@@ -144,8 +144,28 @@
   ([] {:cheapest-cost-sc nil :cheapest-sc nil})
   ([& m] (reduce-csc-pairs m)))
 
-(defn- locate-cheapest-storage-configuration-in-partition [scp p]
-  (r/fold csc-combiner (partial csc-reducer scp) (vec p)))
+(defn- unique-str-one-drive-array [itm]
+  (str "(" (str/join " " (map #(:array-name %) itm)) ")"))
+
+(defn- unique-str-one-dac [itm]
+  (str "(" (str/join (map unique-str-one-drive-array itm)) ")"))
+
+(defn- unique-str-all-possible-storage-configurations-for-one-component [idx itm]
+  (str "(" idx "-" (apply str (map unique-str-one-dac itm)) ")"))
+
+(defn- unique-str-all-possible-storage-configurations [p]
+  (apply str (map-indexed unique-str-all-possible-storage-configurations-for-one-component p)))
+
+(defn- ^{:clojure.core.memoize/args-fn (comp unique-str-all-possible-storage-configurations second)}
+locate-cheapest-storage-configuration
+  [scp all-possible-storage-configurations]
+  (let [all-storage-configurations (apply combo/cartesian-product
+                                          all-possible-storage-configurations)]
+    (reduce-csc-pairs (map #(r/fold csc-combiner (partial csc-reducer scp) (vec %))
+                           (partition-all 1000000 all-storage-configurations)))))
+
+(def locate-cheapest-storage-configuration-memo
+  (m/memo #'locate-cheapest-storage-configuration))
 
 (defn- ^{:clojure.core.memoize/args-fn first}
 find-the-cheapest-storage-configuration
@@ -158,8 +178,9 @@ find-the-cheapest-storage-configuration
                                                   (set all-drive-block-combinations)
                                                   all-smaller-drive-block-combinations)
         csc-pair (->> remaining-drive-block-combinations
-                      (r/map (partial create-storage-configuration scp))
-                      (r/map (partial locate-cheapest-storage-configuration-in-partition scp))
+                      (r/map (partial generate-all-possible-storage-configurations scp))
+                      (r/remove (partial some empty?))
+                      (r/map (partial locate-cheapest-storage-configuration-memo scp))
                       (r/fold csc-combiner))]
     (if (:cheapest-cost-sc csc-pair)
       (println (str "Cheapest storage configuration found costs " (:cheapest-cost-sc csc-pair)))
