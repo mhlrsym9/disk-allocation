@@ -409,20 +409,16 @@ find-the-cheapest-storage-configuration
         cheapest-machine-configuration (find-cheapest-machine-configuration pool smc)
         machine-configuration-cost (calculate-machine-configuration-cost
                                      cheapest-machine-configuration)]
-    (if (and machine-configuration-cost storage-configuration-cost)
-      (do
-        (println (str "Cheapest cost of this smc is "
-                      (+ machine-configuration-cost storage-configuration-cost)))
-        {:storage-configuration      cheapest-storage-configuration
-         :storage-configuration-cost storage-configuration-cost
-         :machine-configuration      (remove-all-drive-arrays-from-machine-configuration
-                                       cheapest-machine-configuration)
-         :machine-configuration-cost machine-configuration-cost
-         :total-configuration-cost (+ storage-configuration-cost
-                                      machine-configuration-cost
-                                      (final-cost-adjustment cheapest-storage-configuration
-                                                             cheapest-machine-configuration))})
-      (println "No valid configuration for this smc!"))))
+    (when (and machine-configuration-cost storage-configuration-cost)
+      {:storage-configuration      cheapest-storage-configuration
+       :storage-configuration-cost storage-configuration-cost
+       :machine-configuration      (remove-all-drive-arrays-from-machine-configuration
+                                     cheapest-machine-configuration)
+       :machine-configuration-cost machine-configuration-cost
+       :total-configuration-cost (+ storage-configuration-cost
+                                    machine-configuration-cost
+                                    (final-cost-adjustment cheapest-storage-configuration
+                                                           cheapest-machine-configuration))})))
 
 (defn- lowest-machine-count
   [{r-mc :machine-configuration :as r}
@@ -481,7 +477,8 @@ find-the-cheapest-storage-configuration
 
 (defn- find-the-cheapest-system []
   (let [cheapest-storage-systems (filter identity (map find-the-cheapest-system-for-this-storage-machine-configuration-list
-                                                       list-of-all-storage-machine-configuration-lists))]
+                                                       (take 5 list-of-all-storage-machine-configuration-lists)))]
     (when (seq cheapest-storage-systems)
+      (println cheapest-storage-systems)
       (find-cheapest-storage-system "lasmcl" cheapest-storage-systems))))
 
