@@ -5,7 +5,8 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [org.clojure/math.combinatorics "0.1.4"]
-                 [org.clojure/core.memoize "0.7.1"]]
+                 [org.clojure/core.memoize "0.7.1"]
+                 [zprint "0.4.10"]]
   :main ^:skip-aot disk-allocation.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})

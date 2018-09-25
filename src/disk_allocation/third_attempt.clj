@@ -5,6 +5,7 @@
   (:require [clojure.core.memoize :as m])
   (:require [clojure.core.reducers :as r])
   (:require [clojure.string :as str])
+  (:require [zprint.core :as zp])
   (:import (disk_allocation.data Machine)))
 
 ; dac stands for drive array configuration
@@ -476,9 +477,9 @@ find-the-cheapest-storage-configuration
       (find-cheapest-storage-system "smcl" cheapest-storage-systems))))
 
 (defn- find-the-cheapest-system []
-  (let [cheapest-storage-systems (filter identity (map find-the-cheapest-system-for-this-storage-machine-configuration-list
+  (when-let [cheapest-storage-systems (filter identity (map find-the-cheapest-system-for-this-storage-machine-configuration-list
                                                        (take 5 list-of-all-storage-machine-configuration-lists)))]
-    (when (seq cheapest-storage-systems)
-      (println cheapest-storage-systems)
-      (find-cheapest-storage-system "lasmcl" cheapest-storage-systems))))
+    (let [cheapest-storage-system (find-cheapest-storage-system "lasmcl" cheapest-storage-systems)]
+      (zp/zprint cheapest-storage-systems)
+      cheapest-storage-system)))
 
