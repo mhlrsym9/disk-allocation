@@ -74,8 +74,8 @@
                                                                            (list :dmz)
                                                                            (list nil))))
 
-(defn generate-standard-pool [smc-pool]
-  {:smc-pool smc-pool :lan-pool all-possible-lan-machines :dmz-pool all-possible-dmz-machines})
+(defn generate-standard-pool [name smc-pool]
+  {:name name :smc-pool smc-pool :lan-pool all-possible-lan-machines :dmz-pool all-possible-dmz-machines})
 
 (def placeholder-machines (generate-machines (combo/cartesian-product (list placeholder-case)
                                                                       (list placeholder-mb)
@@ -86,8 +86,8 @@
                                                                       (list :placeholder)
                                                                       (list nil))))
 
-(defn generate-placeholder-pool [smc-pool]
-  {:smc-pool smc-pool :lan-pool placeholder-machines :dmz-pool placeholder-machines})
+(defn generate-placeholder-pool [name smc-pool]
+  {:name name :smc-pool smc-pool :lan-pool placeholder-machines :dmz-pool placeholder-machines})
 
 (defrecord Drive [drive-size can-be-two-point-five-drive drive-cost])
 (def one-tb-drive (Drive. 1 true (with-precision 5 (/ (+ 59.99M 65.27M) 2M))))              ; Ave NewEgg price 2018-09-03
@@ -99,8 +99,8 @@
 (def six-tb-drive (Drive. 6 false 154.99M))                                                 ; NewEgg sale ends 2018-09-28
 ;(def eight-tb-drive (Drive. 8 false (with-precision 5 (/ (+ 241.02M 245.49M 264.99M) 3M)))) ; Ave NewEgg price 2018-09-05
 (def eight-tb-drive (Drive. 8 false 229.99M))                                              ; NewEgg flyer ends 2018-09-30
-(def ten-tb-drive (Drive. 10 false (with-precision 5 (/ (+ 299.00M 304.27M 330.70M) 3M)))) ; Ave NewEgg price 2018-09-03
-;(def ten-tb-drive (Drive. 10 false 284.99M))                                                ; NewEgg sale ends 2018-09-21
+;(def ten-tb-drive (Drive. 10 false (with-precision 5 (/ (+ 299.00M 304.27M 330.70M) 3M)))) ; Ave NewEgg price 2018-09-03
+(def ten-tb-drive (Drive. 10 false 269.99M))                                                ; NewEgg sale ends 2018-09-30
 (def twelve-tb-drive (Drive. 12 false 399.89M))                                             ; NewEgg price 2018-09-03
 
 (defrecord DriveArray [array-name number-drives tib-50-percent tib-80-percent drive])
@@ -288,7 +288,8 @@
 (def all-drive-arrays (concat all-small-drive-arrays all-raid-two-z-drive-arrays))
 
 (def all-storage-in-one-machine
-  (generate-standard-pool (map list
+  (generate-standard-pool "all-storage-in-one-machine"
+                          (map list
                                (generate-machines
                                  (combo/cartesian-product (list one-r5 one-xl)
                                                           (list augmented-msi-x99a-tomahawk)
@@ -328,12 +329,14 @@
 
 (def all-storage-in-two-machines
   (generate-standard-pool
+    "all-storage-in-two-machines"
     (combo/cartesian-product
       (big-storage-box (list lan-combined-target-size) :lan all-drive-arrays)
       (small-storage-box (list dmz-combined-target-size) :dmz all-small-drive-arrays))))
 
 (def storage-with-lan-split
   (generate-standard-pool
+    "storage-with-lan-split"
     (combo/cartesian-product
       (big-storage-box (list lan-server-target-size) :lan all-drive-arrays)
       (small-storage-box (list lan-client-target-size) :lan all-small-drive-arrays)
@@ -341,6 +344,7 @@
 
 (def storage-with-dmz-split
   (generate-standard-pool
+    "storage-with-dmz-split"
     (combo/cartesian-product
       (big-storage-box (list lan-combined-target-size) :lan all-drive-arrays)
       (small-storage-box (list dmz-server-target-size) :dmz all-small-drive-arrays)
@@ -378,6 +382,7 @@
 
 (def storage-with-placeholders
   (generate-placeholder-pool
+    "storage-with-placeholders"
     (combo/cartesian-product
       placeholder-big-storage-box
       placeholder-lan-storage-box
@@ -385,6 +390,7 @@
 
 (def all-storage-in-four-machines
   (generate-standard-pool
+    "all-storage-in-four-machines"
     (combo/cartesian-product
       (big-storage-box (list lan-server-target-size) :lan all-drive-arrays)
       (small-storage-box (list lan-client-target-size) :lan all-small-drive-arrays)

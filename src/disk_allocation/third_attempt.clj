@@ -400,7 +400,7 @@ find-the-cheapest-storage-configuration
   (apply + ((juxt final-cost-adjustment-for-xl-machines final-cost-adjustment-for-r5-machines)
              storage-configuration machine-configuration)))
 
-(defn- find-cheapest-storage-system-for-this-storage-machine-configuration [pool smc]
+(defn- find-cheapest-storage-system-for-this-storage-machine-configuration [{:keys [name] :as pool} smc]
   (let [storage-configuration-pattern (utils/generate-storage-machine-configuration-pattern-v3 smc)
         cheapest-storage-configuration (find-cheapest-storage-configuration
                                          storage-configuration-pattern)
@@ -411,15 +411,16 @@ find-the-cheapest-storage-configuration
         machine-configuration-cost (calculate-machine-configuration-cost
                                      cheapest-machine-configuration)]
     (when (and machine-configuration-cost storage-configuration-cost)
-      {:storage-configuration      cheapest-storage-configuration
+      {:name                       name
+       :storage-configuration      cheapest-storage-configuration
        :storage-configuration-cost storage-configuration-cost
        :machine-configuration      (remove-all-drive-arrays-from-machine-configuration
                                      cheapest-machine-configuration)
        :machine-configuration-cost machine-configuration-cost
-       :total-configuration-cost (+ storage-configuration-cost
-                                    machine-configuration-cost
-                                    (final-cost-adjustment cheapest-storage-configuration
-                                                           cheapest-machine-configuration))})))
+       :total-configuration-cost   (+ storage-configuration-cost
+                                      machine-configuration-cost
+                                      (final-cost-adjustment cheapest-storage-configuration
+                                                             cheapest-machine-configuration))})))
 
 (defn- lowest-machine-count
   [{r-mc :machine-configuration :as r}
