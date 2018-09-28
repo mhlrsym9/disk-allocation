@@ -74,8 +74,12 @@
                                                                            (list :dmz)
                                                                            (list nil))))
 
-(defn generate-standard-pool [name smc-pool]
-  {:name name :smc-pool smc-pool :lan-pool all-possible-lan-machines :dmz-pool all-possible-dmz-machines})
+(defn generate-standard-pool [name storage-farm-configuration-pool]
+  {:configuration                   :farm-configuration-pool
+   :name                            name
+   :storage-farm-configuration-pool storage-farm-configuration-pool
+   :lan-pool                        all-possible-lan-machines
+   :dmz-pool                        all-possible-dmz-machines})
 
 (def placeholder-machines (generate-machines (combo/cartesian-product (list placeholder-case)
                                                                       (list placeholder-mb)
@@ -86,8 +90,12 @@
                                                                       (list :placeholder)
                                                                       (list nil))))
 
-(defn generate-placeholder-pool [name smc-pool]
-  {:name name :smc-pool smc-pool :lan-pool placeholder-machines :dmz-pool placeholder-machines})
+(defn generate-placeholder-pool [name storage-farm-configuration-pool]
+  {:configuration                   :farm-configuration-pool
+   :name                            name
+   :storage-farm-configuration-pool storage-farm-configuration-pool
+   :lan-pool                        placeholder-machines
+   :dmz-pool                        placeholder-machines})
 
 (defrecord Drive [drive-size can-be-two-point-five-drive drive-cost])
 (def one-tb-drive (Drive. 1 true (with-precision 5 (/ (+ 59.99M 65.27M) 2M))))              ; Ave NewEgg price 2018-09-03
@@ -287,19 +295,20 @@
 
 (def all-drive-arrays (concat all-small-drive-arrays all-raid-two-z-drive-arrays))
 
-(def all-storage-in-one-machine
-  (generate-standard-pool "all-storage-in-one-machine"
-                          (map list
-                               (generate-machines
-                                 (combo/cartesian-product (list one-r5 one-xl)
-                                                          (list augmented-msi-x99a-tomahawk)
-                                                          (list e5-2603-v3)
-                                                          (list hba-none hba-9211-4i hba-9211-8i)
-                                                          (list no-required-drives)
-                                                          (list (list lan-combined-target-size
-                                                                      dmz-combined-target-size))
-                                                          (list :lan-and-dmz)
-                                                          (list all-drive-arrays))))))
+(def single-storage-machine-in-farm-configuration-pool
+  (generate-standard-pool
+    "all-storage-in-one-machine"
+    (map list
+         (generate-machines
+           (combo/cartesian-product (list one-r5 one-xl)
+                                    (list augmented-msi-x99a-tomahawk)
+                                    (list e5-2603-v3)
+                                    (list hba-none hba-9211-4i hba-9211-8i)
+                                    (list no-required-drives)
+                                    (list (list lan-combined-target-size
+                                                dmz-combined-target-size))
+                                    (list :lan-and-dmz)
+                                    (list all-drive-arrays))))))
 
 (defn- big-storage-box
   ([size-list machine-type drive-arrays]
@@ -327,14 +336,14 @@
                                                (list machine-type)
                                                (list drive-arrays)))))
 
-(def all-storage-in-two-machines
+(def two-storage-machines-in-farm-configuration-pool
   (generate-standard-pool
     "all-storage-in-two-machines"
     (combo/cartesian-product
       (big-storage-box (list lan-combined-target-size) :lan all-drive-arrays)
       (small-storage-box (list dmz-combined-target-size) :dmz all-small-drive-arrays))))
 
-(def storage-with-lan-split
+(def three-storage-machines-with-lan-split-in-farm-configuration-pool
   (generate-standard-pool
     "storage-with-lan-split"
     (combo/cartesian-product
@@ -342,7 +351,7 @@
       (small-storage-box (list lan-client-target-size) :lan all-small-drive-arrays)
       (small-storage-box (list dmz-combined-target-size) :dmz all-small-drive-arrays))))
 
-(def storage-with-dmz-split
+(def three-storage-machines-with-dmz-split-in-farm-configuration-pool
   (generate-standard-pool
     "storage-with-dmz-split"
     (combo/cartesian-product
@@ -380,7 +389,7 @@
                                               (list :dmz)
                                               (list all-small-drive-arrays))))
 
-(def storage-with-placeholders
+(def placeholder-storage-machine-in-farm-configuration-pool
   (generate-placeholder-pool
     "storage-with-placeholders"
     (combo/cartesian-product
@@ -388,7 +397,7 @@
       placeholder-lan-storage-box
       placeholder-dmz-storage-box)))
 
-(def all-storage-in-four-machines
+(def four-storage-machines-in-farm-configuration-pool
   (generate-standard-pool
     "all-storage-in-four-machines"
     (combo/cartesian-product
@@ -397,9 +406,11 @@
       (small-storage-box (list dmz-server-target-size) :dmz all-small-drive-arrays)
       (small-storage-box (list dmz-client-target-size) :dmz all-small-drive-arrays))))
 
-(def list-of-all-storage-machine-configuration-lists (list all-storage-in-one-machine
-                                                           all-storage-in-two-machines
-                                                           storage-with-placeholders
-                                                           storage-with-lan-split
-                                                           storage-with-dmz-split
-                                                           all-storage-in-four-machines))
+(def all-farm-configuration-pools
+  {:configuration                :all-farm-configuration-pools
+   :all-farm-configuration-pools (list single-storage-machine-in-farm-configuration-pool
+                                       two-storage-machines-in-farm-configuration-pool
+                                       three-storage-machines-with-lan-split-in-farm-configuration-pool
+                                       three-storage-machines-with-dmz-split-in-farm-configuration-pool
+                                       placeholder-storage-machine-in-farm-configuration-pool
+                                       four-storage-machines-in-farm-configuration-pool)})

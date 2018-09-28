@@ -206,5 +206,5 @@
 (defn- find-the-cheapest-system []
   (find-cheapest-system "lasmcl" (filter identity (map-indexed #((comp (partial find-cheapest-system (str "tlsmcl " %1))
                                                                find-the-cheapest-system-for-this-storage-machine-configuration-list) %1 %2)
-                                                       list-of-all-storage-machine-configuration-lists))))
+                                                               all-farm-configuration-pools))))
 
