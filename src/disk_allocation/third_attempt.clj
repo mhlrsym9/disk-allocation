@@ -444,10 +444,8 @@ find-the-cheapest-storage-configuration
       c
       0)))
 
-(defn- partition-by-vector [{:keys [storage-farm-configuration-pattern]}]
-  (map #(vector (:number-two-point-five-drives %)
-                (:max-number-drives %))
-       storage-farm-configuration-pattern))
+(defn- extract-number-two-point-five-drives [{:keys [storage-farm-configuration-pattern]}]
+  (map #(:number-two-point-five-drives %) storage-farm-configuration-pattern))
 
 (defn- assoc-previous-storage-farm-configuration-pattern [[f s]]
   (assoc f :previous-storage-farm-configuration-pattern (:storage-farm-configuration-pattern s)))
@@ -465,7 +463,7 @@ find-the-cheapest-storage-configuration
   (let [cheapest-farms (->> storage-farm-configuration-pool
                             (map (partial adjust-storage-farm-configuration pool))
                             (sort by-storage-farm-configuration-pattern)
-                            (partition-by partition-by-vector)
+                            (partition-by extract-number-two-point-five-drives)
                             (mapcat add-previous-storage-farm-configuration-pattern)
                             (map find-the-cheapest-farm)
                             (filter identity))]
