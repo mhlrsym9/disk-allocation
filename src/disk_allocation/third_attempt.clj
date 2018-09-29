@@ -464,9 +464,12 @@ find-the-cheapest-storage-configuration
                             (map (partial adjust-storage-farm-configuration pool))
                             (sort by-storage-farm-configuration-pattern)
                             (partition-by extract-number-two-point-five-drives)
-                            (mapcat add-previous-storage-farm-configuration-pattern)
-                            (map find-the-cheapest-farm)
-                            (filter identity))]
+                            vec
+                            (r/map (partial vec))
+                            (r/mapcat add-previous-storage-farm-configuration-pattern)
+                            (r/map find-the-cheapest-farm)
+                            (r/filter identity)
+                            (into (list)))]
     (when (seq cheapest-farms)
       (find-the-cheapest-farm {:configuration :actual-farms
                                :level "farm-configuration-pool"
