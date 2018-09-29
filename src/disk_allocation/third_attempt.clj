@@ -195,65 +195,6 @@ find-the-cheapest-storage-configuration
   ([scp smaller-scp]
    (find-the-cheapest-storage-configuration-memo scp smaller-scp)))
 
-(defn- by-two-point-five-drives-max-number-drives [l r]
-  (compare [(:number-two-point-five-drives l) (:max-number-drives l)]
-           [(:number-two-point-five-drives r) (:max-number-drives r)]))
-
-(defn- by-scp [l r]
-  (let [c (some (fn [[il ir]]
-                  (let [c (by-two-point-five-drives-max-number-drives il ir)]
-                    (if (not= 0 c) c nil)))
-                (map (fn [il ir] (list il ir)) l r))]
-    (if c
-      c
-      0)))
-
-(defn- scp-chain-reducer [_ scp-chain]
-  (reduce (fn [{previous-scp :scp} scp]
-            {:csc (find-cheapest-storage-configuration scp previous-scp) :scp scp})
-          {:csc nil :scp nil}
-          scp-chain))
-
-(defn- scp-chain-combiner
-  ([] {:csc nil :scp nil})
-  ([& m] (reduce (fn [{r-csc :csc r-scp :scp, :as r} {v-csc :csc, v-scp :scp, :as v}]
-                   (let [r-cost (calculate-storage-configuration-cost r-csc r-scp)
-                         v-cost (calculate-storage-configuration-cost v-csc v-scp)]
-                     (cond (nil? r-cost) v
-                           (nil? v-cost) r
-                           (< v-cost r-cost) v
-                           :else r)))
-                {:cheapest-cost-sc nil :cheapest-sc nil} m)))
-
-(defn- pre-populate-all-drive-array-configurations [all-unique-scps]
-  (let [all-unique-scps-for-one-component (apply hash-set (flatten (seq all-unique-scps)))
-        pairs (map #(list (get % :all-drive-arrays)
-                          (create-all-drive-block-combinations %))
-                   all-unique-scps-for-one-component)]
-    (dorun (map (fn [[all-drive-arrays dcc]]
-                  (map (partial create-all-dacs-with-specified-number-of-drives-memo
-                                all-drive-arrays)
-                       dcc))
-                pairs))))
-
-(defn- pre-populate-cheapest-storage-configurations [all-unique-scps]
-  (let [scp-chains (vec (partition-by (fn [scp] (map :number-two-point-five-drives scp))
-                                      (sort by-scp all-unique-scps)))
-        cheapest-storage-configuration (r/fold scp-chain-combiner
-                                               scp-chain-reducer
-                                               scp-chains)]
-    (if (:csc cheapest-storage-configuration)
-      (println (str "Cheapest storage configuration costs "
-                    (calculate-storage-configuration-cost (:csc cheapest-storage-configuration)
-                                                          (:scp cheapest-storage-configuration)))))))
-
-(defn- pre-populate-caches [{:keys [storage-farm-configuration-pool]}]
-  (let [unique-storage-configuration-patterns (apply hash-set
-                                                     (map utils/generate-storage-machine-configuration-pattern-v3
-                                                          storage-farm-configuration-pool))]
-    (pre-populate-all-drive-array-configurations unique-storage-configuration-patterns)
-    (pre-populate-cheapest-storage-configurations unique-storage-configuration-patterns)))
-
 (defn- extract-machines-of-type [type machines]
   (filter #(= type (:type %)) machines))
 
@@ -323,7 +264,10 @@ find-the-cheapest-storage-configuration
 (defn- calculate-machine-configuration-cost [[the-storage-machines & machines :as mc]]
   (when mc
     (let [all-machines (concat the-storage-machines machines)]
-      (- (reduce (fn [cost ^Machine machine] (+ cost (calculate-machine-cost machine))) 0.00M all-machines)
+      (- (reduce (fn [cost ^Machine machine]
+                   (+ cost (calculate-machine-cost machine)))
+                 0.00M
+                 all-machines)
          (apply + (map (fn [[item match-fnc held]]
                          (adjust-cost-for-matching-items-in-system-configuration mc item match-fnc held))
                        adjustments))
@@ -339,8 +283,11 @@ find-the-cheapest-storage-configuration
     (reduce (fn [r v] (+ r (:three-point-five-drives (:case v)))) 0 all-machines)))
 
 (defn- find-cheapest-machine-configuration [{:keys [storage-farm-configuration lan-pool dmz-pool]}]
-  (let [all-machine-configurations (combo/cartesian-product (list storage-farm-configuration) lan-pool dmz-pool)
-        all-valid-machine-configurations (filter keep-good-case-configurations all-machine-configurations)]
+  (let [all-machine-configurations (combo/cartesian-product (list storage-farm-configuration)
+                                                            lan-pool
+                                                            dmz-pool)
+        all-valid-machine-configurations (filter keep-good-case-configurations
+                                                 all-machine-configurations)]
     (when (seq all-valid-machine-configurations)
       (second (reduce (fn [[cheapest-cost-mc cheapest-mc :as cheapest] mc]
                         (let [cost-mc (calculate-machine-configuration-cost mc)]
@@ -437,56 +384,102 @@ find-the-cheapest-storage-configuration
 
 (defmethod find-the-cheapest-farm :actual-farms [{:keys [level actual-farms]}]
   (let [cheapest-farm (reduce (fn [{r-total-cost :total-configuration-cost, :as r}
-                                             {v-total-cost :total-configuration-cost, :as v}]
-                                          (cond
-                                            (< v-total-cost r-total-cost) v
-                                            (= v-total-cost r-total-cost) (use-other-heuristics-to-choose-best-storage-system r v)
-                                            :else r))
-                                        (first actual-farms)
-                                        (rest actual-farms))]
+                                   {v-total-cost :total-configuration-cost, :as v}]
+                                (cond
+                                  (< v-total-cost r-total-cost) v
+                                  (= v-total-cost r-total-cost) (use-other-heuristics-to-choose-best-storage-system r v)
+                                  :else r))
+                              (first actual-farms)
+                              (rest actual-farms))]
     (println (str "Cheapest system at "
                   level
                   " level costs "
                   (:total-configuration-cost cheapest-farm)))
     cheapest-farm))
 
-(defmethod find-the-cheapest-farm :single-storage-farm-configuration-pool [{:keys [storage-farm-configuration name] :as pool}]
-  (let [storage-configuration-pattern (utils/generate-storage-machine-configuration-pattern-v3 storage-farm-configuration)
-        cheapest-storage-configuration (find-cheapest-storage-configuration
-                                         storage-configuration-pattern)
+(defmethod find-the-cheapest-farm :single-storage-farm-configuration-pool
+  [{:keys [storage-farm-configuration-pattern
+           previous-storage-farm-configuration-pattern
+           name] :as pool}]
+  (let [cheapest-storage-configuration (find-cheapest-storage-configuration
+                                         storage-farm-configuration-pattern
+                                         previous-storage-farm-configuration-pattern)
         storage-configuration-cost (calculate-storage-configuration-cost
                                      cheapest-storage-configuration
-                                     storage-configuration-pattern)
+                                     storage-farm-configuration-pattern)
         cheapest-machine-configuration (find-cheapest-machine-configuration pool)
         machine-configuration-cost (calculate-machine-configuration-cost
                                      cheapest-machine-configuration)]
     (when (and machine-configuration-cost storage-configuration-cost)
-      {:name                       name
-       :storage-configuration      cheapest-storage-configuration
-       :storage-configuration-cost storage-configuration-cost
-       :machine-configuration      (remove-all-drive-arrays-from-machine-configuration
-                                     cheapest-machine-configuration)
-       :machine-configuration-cost machine-configuration-cost
-       :total-configuration-cost   (+ storage-configuration-cost
-                                      machine-configuration-cost
-                                      (final-cost-adjustment cheapest-storage-configuration
-                                                             cheapest-machine-configuration))})))
+      (let [final-cost-adjustment (final-cost-adjustment cheapest-storage-configuration
+                                                         cheapest-machine-configuration)]
+        {:name                       name
+         :storage-configuration      cheapest-storage-configuration
+         :storage-configuration-cost storage-configuration-cost
+         :machine-configuration      (remove-all-drive-arrays-from-machine-configuration
+                                       cheapest-machine-configuration)
+         :machine-configuration-cost machine-configuration-cost
+         :final-cost-adjustment      final-cost-adjustment
+         :total-configuration-cost   (+ storage-configuration-cost
+                                        machine-configuration-cost
+                                        final-cost-adjustment)}))))
+
+(defn- adjust-storage-farm-configuration [pool sfc]
+  (assoc (dissoc pool :storage-farm-configuration-pool)
+    :storage-farm-configuration sfc
+    :configuration :single-storage-farm-configuration-pool
+    :storage-farm-configuration-pattern (utils/generate-storage-farm-configuration-pattern-v3 sfc)))
+
+(defn- by-two-point-five-drives-max-number-drives [l r]
+  (compare [(:number-two-point-five-drives l) (:max-number-drives l)]
+           [(:number-two-point-five-drives r) (:max-number-drives r)]))
+
+(defn- by-storage-farm-configuration-pattern [{l :storage-farm-configuration-pattern}
+                                              {r :storage-farm-configuration-pattern}]
+  (let [c (some (fn [[il ir]]
+                  (let [c (by-two-point-five-drives-max-number-drives il ir)]
+                    (when (not= 0 c) c)))
+                (map (fn [il ir] (list il ir)) l r))]
+    (if c
+      c
+      0)))
+
+(defn- partition-by-vector [{:keys [storage-farm-configuration-pattern]}]
+  (map #(vector (:number-two-point-five-drives %)
+                (:max-number-drives %))
+       storage-farm-configuration-pattern))
+
+(defn- assoc-previous-storage-farm-configuration-pattern [[f s]]
+  (assoc f :previous-storage-farm-configuration-pattern (:storage-farm-configuration-pattern s)))
+
+(defn- add-previous-storage-farm-configuration-pattern [storage-farm-configuration-strip]
+  (let [start-strip (assoc-previous-storage-farm-configuration-pattern
+                      (list (first storage-farm-configuration-strip)
+                            nil))]
+    (if (= 1 (count storage-farm-configuration-strip))
+      (list start-strip)
+      (cons start-strip (map assoc-previous-storage-farm-configuration-pattern
+                             (map reverse (partition 2 1 storage-farm-configuration-strip)))))))
 
 (defmethod find-the-cheapest-farm :farm-configuration-pool [{:keys [storage-farm-configuration-pool] :as pool}]
-  (pre-populate-caches pool)
-  (let [cheapest-farms (filter identity
-                               (map find-the-cheapest-farm
-                                    (map (fn [smc] (assoc (dissoc pool :storage-farm-configuration-pool)
-                                                     :storage-farm-configuration smc
-                                                     :configuration :single-storage-farm-configuration-pool))
-                                         storage-farm-configuration-pool)))]
+  (let [cheapest-farms (->> storage-farm-configuration-pool
+                            (map (partial adjust-storage-farm-configuration pool))
+                            (sort by-storage-farm-configuration-pattern)
+                            (partition-by partition-by-vector)
+                            (mapcat add-previous-storage-farm-configuration-pattern)
+                            (map find-the-cheapest-farm)
+                            (filter identity))]
     (when (seq cheapest-farms)
-      (find-the-cheapest-farm {:configuration :actual-farms :level "smcl" :actual-farms cheapest-farms}))))
+      (find-the-cheapest-farm {:configuration :actual-farms
+                               :level "farm-configuration-pool"
+                               :actual-farms cheapest-farms}))))
 
 (defmethod find-the-cheapest-farm :all-farm-configuration-pools [{:keys [all-farm-configuration-pools]}]
   (when-let [cheapest-farms (filter identity
                                     (map find-the-cheapest-farm
                                          (take 2 all-farm-configuration-pools)))]
-    (let [cheapest-farm (find-the-cheapest-farm {:configuration :actual-farms :level "lasmcl" :actual-farms cheapest-farms})]
+    (let [cheapest-farm (find-the-cheapest-farm {:configuration :actual-farms
+                                                 :level "all-farm-configuration-pools"
+                                                 :actual-farms cheapest-farms})]
       (zp/zprint cheapest-farm)
       cheapest-farm)))
