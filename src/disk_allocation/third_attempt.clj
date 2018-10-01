@@ -21,9 +21,13 @@
                  (repeat (count target-size)
                          (range 2 (inc number-drives))))))
 
-(defn- create-all-drive-block-combinations [{:keys [max-number-drives target-size] :as scp-for-one-component}]
-  (mapcat (partial create-all-valid-vm-dac-drive-block-combinations scp-for-one-component)
+(defn- create-all-storage-machine-drive-block-combinations
+  [{:keys [max-number-drives target-size] :as storage-machine-configuration-pattern}]
+  (mapcat (partial create-all-valid-vm-dac-drive-block-combinations storage-machine-configuration-pattern)
           (range (* 2 (count target-size)) (inc max-number-drives))))
+
+(defn- add-storage-farm-drive-block-combination [sfcp storage-farm-drive-block-combination]
+  (map #(assoc %1 :drive-block-combination %2) sfcp storage-farm-drive-block-combination))
 
 ; valid drive arrays are drive arrays whose size evenly divides into the number of drives needed.
 (defn- extract-valid-drive-arrays [all-drive-arrays number-drives-needed]
@@ -48,16 +52,16 @@
 (def create-all-dacs-with-specified-number-of-drives-memo
   (memoize create-all-dacs-with-specified-number-of-drives))
 
-(defn- create-all-vm-dacs-for-one-component [{:keys [all-drive-arrays]} drive-block]
-  (apply combo/cartesian-product (map (partial create-all-dacs-with-specified-number-of-drives-memo
-                                               all-drive-arrays)
-                                      drive-block)))
+(defn- create-all-vm-dacs-for-storage-machine [{:keys [all-drive-arrays drive-block-combination]}]
+  (apply combo/cartesian-product
+         (map (partial create-all-dacs-with-specified-number-of-drives-memo
+                       all-drive-arrays)
+              drive-block-combination)))
 
-(defn- is-vm-dac-right? [percent-key {:keys [target-size] :as scp-for-one-component} vm-dac]
+(defn- is-vm-dac-right? [percent-key {:keys [target-size] :as smcp} vm-dac]
   (and (let [args (map list target-size vm-dac)]
          (every? #(utils/is-dac-right-size? (first %) (second %) percent-key) args))
-       (utils/does-dac-have-right-physical-drive-size-configuration? scp-for-one-component
-                                                                     (apply concat vm-dac))))
+       (utils/does-dac-have-right-physical-drive-size-configuration? smcp (apply concat vm-dac))))
 
 (defn- dac-cost [dac]
   (reduce (fn [r {:keys [number-drives], {:keys [drive-cost]} :drive}]
@@ -85,12 +89,9 @@
   ([] nil)
   ([r v] (vm-dac-reducer r v)))
 
-(defn- create-all-valid-vm-dacs-for-one-component [percent-key scp-for-one-component drive-block]
-  (let [initial-vm-dacs (create-all-vm-dacs-for-one-component scp-for-one-component drive-block)
-        valid-vm-dacs (r/filter (partial is-vm-dac-right?
-                                         percent-key
-                                         scp-for-one-component)
-                                initial-vm-dacs)
+(defn- create-all-valid-vm-dacs-for-storage-machine [percent-key smcp]
+  (let [initial-vm-dacs (create-all-vm-dacs-for-storage-machine smcp)
+        valid-vm-dacs (r/filter #(is-vm-dac-right? percent-key smcp %) initial-vm-dacs)
         vm-dacs-with-one-or-four-tb-drives (r/foldcat (r/filter filter-by-drives valid-vm-dacs))
         cheapest-vm-dac (->> valid-vm-dacs
                              (r/remove (set vm-dacs-with-one-or-four-tb-drives))
@@ -112,10 +113,8 @@
 (defn- total-number-drives-in-storage-configuration [sc]
   (reduce (fn [r vm-dac] (+ r (total-number-drives-in-vm-dac vm-dac))) 0 sc))
 
-(defn- generate-all-possible-storage-configurations [scp drive-block-combination]
-  (map (partial create-all-valid-vm-dacs-for-one-component
-                :tib-50-percent)
-       scp drive-block-combination))
+(defn- generate-all-possible-storage-machine-configurations [sfcp]
+  (map #(create-all-valid-vm-dacs-for-storage-machine :tib-50-percent %) sfcp))
 
 (defn- determine-cheaper-storage-configuration [{r-cost-sc :cheapest-cost-sc,
                                                  r-sc :cheapest-sc,
@@ -151,49 +150,46 @@
 (defn- unique-str-one-dac [itm]
   (str "(" (str/join (map unique-str-one-drive-array itm)) ")"))
 
-(defn- unique-str-all-possible-storage-configurations-for-one-component [idx itm]
+(defn- unique-str-all-possible-storage-machine-configurations [idx itm]
   (str "(" idx "-" (apply str (map unique-str-one-dac itm)) ")"))
 
-(defn- unique-str-all-possible-storage-configurations [p]
-  (apply str (map-indexed unique-str-all-possible-storage-configurations-for-one-component p)))
+(defn- unique-str-all-possible-storage-farm-configurations [p]
+  (apply str (map-indexed unique-str-all-possible-storage-machine-configurations p)))
 
-(defn- ^{:clojure.core.memoize/args-fn (comp unique-str-all-possible-storage-configurations second)}
-locate-cheapest-storage-configuration
+(defn- ^{:clojure.core.memoize/args-fn (comp unique-str-all-possible-storage-farm-configurations second)}
+locate-cheapest-storage-farm-configuration
   [scp all-possible-storage-configurations]
   (let [all-storage-configurations (apply combo/cartesian-product
                                           all-possible-storage-configurations)]
     (reduce-csc-pairs (map #(r/fold csc-combiner (partial csc-reducer scp) (vec %))
                            (partition-all 1000000 all-storage-configurations)))))
 
-(def locate-cheapest-storage-configuration-memo
-  (m/memo #'locate-cheapest-storage-configuration))
+(def locate-cheapest-storage-farm-configuration-memo
+  (m/memo #'locate-cheapest-storage-farm-configuration))
 
+; sfdbcs stands for storage-farm-drive-block-combinations
 (defn- ^{:clojure.core.memoize/args-fn first}
-find-the-cheapest-storage-configuration
-  [scp smaller-scp]
-  (let [all-drive-block-combinations (apply combo/cartesian-product
-                                            (map create-all-drive-block-combinations scp))
-        all-smaller-drive-block-combinations (apply combo/cartesian-product
-                                                    (map create-all-drive-block-combinations smaller-scp))
-        remaining-drive-block-combinations (apply disj
-                                                  (set all-drive-block-combinations)
-                                                  all-smaller-drive-block-combinations)
-        csc-pair (->> remaining-drive-block-combinations
-                      (r/map (partial generate-all-possible-storage-configurations scp))
+find-cheapest-storage-farm-configuration
+  [sfcp previous-sfcp]
+  (let [all-sfdbcs (apply combo/cartesian-product
+                          (map create-all-storage-machine-drive-block-combinations sfcp))
+        all-previous-sfdbcs (apply combo/cartesian-product
+                                   (map create-all-storage-machine-drive-block-combinations previous-sfcp))
+        remaining-storage-farm-drive-block-combinations (apply disj
+                                                               (set all-sfdbcs)
+                                                               all-previous-sfdbcs)
+        csc-pair (->> remaining-storage-farm-drive-block-combinations
+                      (r/map (partial add-storage-farm-drive-block-combination sfcp))
+                      (r/map generate-all-possible-storage-machine-configurations)
                       (r/remove (partial some empty?))
-                      (r/map (partial locate-cheapest-storage-configuration-memo scp))
+                      (r/map (partial locate-cheapest-storage-farm-configuration-memo sfcp))
                       (r/fold csc-combiner))]
     (if (:cheapest-cost-sc csc-pair)
       (println (str "Cheapest storage configuration found costs " (:cheapest-cost-sc csc-pair)))
       (println "No configuration found!"))
     (:cheapest-sc csc-pair)))
 
-(def find-the-cheapest-storage-configuration-memo (m/memo #'find-the-cheapest-storage-configuration))
-
-(defn find-cheapest-storage-configuration
-  ([scp] (find-cheapest-storage-configuration scp nil))
-  ([scp smaller-scp]
-   (find-the-cheapest-storage-configuration-memo scp smaller-scp)))
+(def find-cheapest-storage-farm-configuration-memo (m/memo #'find-cheapest-storage-farm-configuration))
 
 (defn- extract-machines-of-type [type machines]
   (filter #(= type (:type %)) machines))
@@ -401,7 +397,7 @@ find-the-cheapest-storage-configuration
   [{:keys [storage-farm-configuration-pattern
            previous-storage-farm-configuration-pattern
            name] :as pool}]
-  (let [cheapest-storage-configuration (find-cheapest-storage-configuration
+  (let [cheapest-storage-configuration (find-cheapest-storage-farm-configuration-memo
                                          storage-farm-configuration-pattern
                                          previous-storage-farm-configuration-pattern)
         storage-configuration-cost (calculate-storage-configuration-cost

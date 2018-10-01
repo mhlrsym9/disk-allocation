@@ -90,13 +90,13 @@
 (defn- all-drive-arrays-for-machine-v3 [{:keys [all-drive-arrays]}]
   {:all-drive-arrays all-drive-arrays})
 
-(defn generate-machine-configuration-pattern-v3 [mc]
+(defn generate-storage-machine-configuration-pattern-v3 [mc]
   (merge (make-drive-adjustment (max-number-drives-for-machine mc) mc)
          (target-size-for-machine-v3 mc)
          (all-drive-arrays-for-machine-v3 mc)))
 
 (defn generate-storage-farm-configuration-pattern-v3 [smc]
-  (map generate-machine-configuration-pattern-v3 smc))
+  (map generate-storage-machine-configuration-pattern-v3 smc))
 
 (defn number-drives-in-dac [{:keys [drive-size]} dac]
   (reduce (fn [r da] (+ r (if (= drive-size (:drive-size (:drive da)))
