@@ -474,9 +474,9 @@ find-cheapest-storage-farm-configuration
 (defmethod find-the-cheapest-farm :all-farm-configuration-pools [{:keys [all-farm-configuration-pools]}]
   (when-let [cheapest-farms (filter identity
                                     (map find-the-cheapest-farm
-                                         (take 2 all-farm-configuration-pools)))]
+                                         (take 5 all-farm-configuration-pools)))]
     (let [cheapest-farm (find-the-cheapest-farm {:configuration :actual-farms
                                                  :level "all-farm-configuration-pools"
                                                  :actual-farms cheapest-farms})]
-      (zp/zprint cheapest-farm)
+      (zp/zprint cheapest-farms)
       cheapest-farm)))
