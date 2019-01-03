@@ -98,19 +98,30 @@
    :dmz-pool                        placeholder-machines})
 
 (defrecord Drive [drive-size can-be-two-point-five-drive drive-cost])
-(def one-tb-drive (Drive. 1 true (with-precision 5 (/ (+ 59.99M 65.27M) 2M))))              ; Ave NewEgg price 2018-09-03
-;(def two-tb-drive (Drive. 2 false (with-precision 5 (/ (+ 77.44M 81.00M) 2M))))             ; Ave NewEgg price 2018-09-03
-(def two-tb-drive (Drive. 2 false 75.00M))                                                  ; NewEgg sale ends 2018-10-22
-(def three-tb-drive (Drive. 3 false (with-precision 5 (/ (+ 96.74M 101.59M) 2M))))          ; Ave NewEgg price 2018-09-03
-(def four-tb-drive (Drive. 4 false (with-precision 5 (/ (+ 121.14M 124.99M 138.69M) 3.0M)))); Ave NewEgg price 2018-09-03
-;(def four-tb-drive (Drive. 4 false 100.00M))                                                ; NewEgg sale ends 2018-09-24
+(def one-tb-drive (Drive. 1 true 59.99M))                                                   ; Ave NewEgg price 2018-12-24
+
+(def two-tb-drive (Drive. 2 false (with-precision 5 (/ (+ 77.05M 81.95M) 2M))))             ; Ave NewEgg price 2018-12-24
+;(def two-tb-drive (Drive. 2 false 75.00M))                                                 ; NewEgg sale ends 2018-10-22
+
+;(def three-tb-drive (Drive. 3 false (with-precision 5 (/ (+ 99.99M 102.99M) 2M))))          ; Ave NewEgg price 2018-12-24
+(def three-tb-drive (Drive. 3 false 80.00M))                                               ; NewEgg sale ends 2018-12-27
+
+(def four-tb-drive (Drive. 4 false (with-precision 5 (/ (+ 119.97M 119.99M 124.00M 129.99M) 4M)))) ; Ave NewEgg price 2018-12-24
+;(def four-tb-drive (Drive. 4 false 100.00M))                                                      ; NewEgg sale ends 2018-12-06
+
 ;(def six-tb-drive (Drive. 6 false (with-precision 5 (/ (+ 168.99M 344.99M 184.46M 184.98M) 5M))))  ; Ave NewEgg price 2018-09-03
-(def six-tb-drive (Drive. 6 false 174.99M))                                                 ; NewEgg sale ends 2018-10-19
-(def eight-tb-drive (Drive. 8 false (with-precision 5 (/ (+ 241.02M 245.49M 264.99M) 3M)))) ; Ave NewEgg price 2018-09-05
-;(def eight-tb-drive (Drive. 8 false 206.50M))                                              ; NewEgg flyer ends 2018-10-05
-;(def ten-tb-drive (Drive. 10 false (with-precision 5 (/ (+ 299.00M 304.27M 330.70M) 3M)))) ; Ave NewEgg price 2018-09-03
-(def ten-tb-drive (Drive. 10 false 274.99M))                                                ; NewEgg sale ends 2018-10-25
-(def twelve-tb-drive (Drive. 12 false 399.89M))                                             ; NewEgg price 2018-09-03
+(def six-tb-drive (Drive. 6 false 150.00M))                                                         ; NewEgg sale ends 2018-12-29
+
+;(def eight-tb-drive (Drive. 8 false (with-precision 5 (/ (+ 223.29M 249.99M 250.24M) 3M)))) ; Ave NewEgg price 2018-12-24
+(def eight-tb-drive (Drive. 8 false 200.0M))                                                 ; NewEgg flyer ends 2018-12-27
+
+(def ten-tb-drive (Drive. 10 false (with-precision 5 (/ (+ 299.00M 304.27M 330.70M) 3M)))) ; Ave NewEgg price 2018-09-03
+;(def ten-tb-drive (Drive. 10 false 250.00M))                                                ; NewEgg sale ends 2018-12-25
+
+;(def twelve-tb-drive (Drive. 12 false 398.99M))                                             ; NewEgg price 2018-12-24
+(def twelve-tb-drive (Drive. 12 false 350.00M))                                            ; NewEgg sale ends 2018-12-27
+
+(def fourteen-tb-drive (Drive. 14 false 525.70M))                                           ; NewEgg price 2018-12-24
 
 (defrecord DriveArray [array-name number-drives tib-50-percent tib-80-percent drive])
 
@@ -122,6 +133,7 @@
 (def eight-tb-raid-one-z-three-drive-array (DriveArray. "8TB RAID-1Z x3" 3 6.79 11.15 eight-tb-drive))
 (def ten-tb-raid-one-z-three-drive-array (DriveArray. "10TB RAID-1Z x3" 3 8.51 13.97 ten-tb-drive))
 (def twelve-tb-raid-one-z-three-drive-array (DriveArray. "12TB RAID-1Z x3" 3 10.16 16.66 twelve-tb-drive))
+(def fourteen-tb-raid-one-z-three-drive-array (DriveArray. "14TB RAID-1Z x3" 3 11.88 19.48 fourteen-tb-drive))
 (def raid-one-z-three-drive-arrays (list one-tb-raid-one-z-three-drive-array
                                          two-tb-raid-one-z-three-drive-array
                                          three-tb-raid-one-z-three-drive-array
@@ -129,7 +141,8 @@
                                          six-tb-raid-one-z-three-drive-array
                                          eight-tb-raid-one-z-three-drive-array
                                          ten-tb-raid-one-z-three-drive-array
-                                         twelve-tb-raid-one-z-three-drive-array))
+                                         twelve-tb-raid-one-z-three-drive-array
+                                         fourteen-tb-raid-one-z-three-drive-array))
 
 (def one-tb-raid-one-z-four-drive-array (DriveArray. "1TB RAID-1Z x4" 4 1.24 2.03 one-tb-drive))
 (def two-tb-raid-one-z-four-drive-array (DriveArray. "2TB RAID-1Z x4" 4 2.47 4.05 two-tb-drive))
@@ -139,6 +152,7 @@
 (def eight-tb-raid-one-z-four-drive-array (DriveArray. "8TB RAID-1Z x4" 4 9.89 16.21 eight-tb-drive))
 (def ten-tb-raid-one-z-four-drive-array (DriveArray. "10TB RAID-1Z x4" 4 12.36 20.27 ten-tb-drive))
 (def twelve-tb-raid-one-z-four-drive-array (DriveArray. "12TB RAID-1Z x4" 4 14.83 24.32 twelve-tb-drive))
+(def fourteen-tb-raid-one-z-four-drive-array (DriveArray. "14TB RAID-1Z x4" 4 17.22 28.23 fourteen-tb-drive))
 (def raid-one-z-four-drive-arrays (list one-tb-raid-one-z-four-drive-array
                                         two-tb-raid-one-z-four-drive-array
                                         three-tb-raid-one-z-four-drive-array
@@ -146,7 +160,8 @@
                                         six-tb-raid-one-z-four-drive-array
                                         eight-tb-raid-one-z-four-drive-array
                                         ten-tb-raid-one-z-four-drive-array
-                                        twelve-tb-raid-one-z-four-drive-array))
+                                        twelve-tb-raid-one-z-four-drive-array
+                                        fourteen-tb-raid-one-z-four-drive-array))
 
 (def one-tb-raid-one-z-five-drive-array (DriveArray. "1TB RAID-1Z x5" 5 1.70 2.79 one-tb-drive))
 (def two-tb-raid-one-z-five-drive-array (DriveArray. "2TB RAID-1Z x5" 5 3.40 5.57 two-tb-drive))
@@ -156,6 +171,7 @@
 (def eight-tb-raid-one-z-five-drive-array (DriveArray. "8TB RAID-1Z x5" 5 13.59 22.29 eight-tb-drive))
 (def ten-tb-raid-one-z-five-drive-array (DriveArray. "10TB RAID-1Z x5" 5 16.97 27.83 ten-tb-drive))
 (def twelve-tb-raid-one-z-five-drive-array (DriveArray. "12TB RAID-1Z x5" 5 20.44 33.52 twelve-tb-drive))
+(def fourteen-tb-raid-one-z-five-drive-array (DriveArray. "14TB RAID-1Z x5" 5 23.81 39.05 fourteen-tb-drive))
 (def raid-one-z-five-drive-arrays (list one-tb-raid-one-z-five-drive-array
                                         two-tb-raid-one-z-five-drive-array
                                         three-tb-raid-one-z-five-drive-array
@@ -163,7 +179,8 @@
                                         six-tb-raid-one-z-five-drive-array
                                         eight-tb-raid-one-z-five-drive-array
                                         ten-tb-raid-one-z-five-drive-array
-                                        twelve-tb-raid-one-z-five-drive-array))
+                                        twelve-tb-raid-one-z-five-drive-array
+                                        fourteen-tb-raid-one-z-five-drive-array))
 
 (def one-tb-raid-two-z-five-drive-array (DriveArray. "1TB RAID-2Z x5" 5 1.26 2.06 one-tb-drive))
 (def two-tb-raid-two-z-five-drive-array (DriveArray. "2TB RAID-2Z x5" 5 2.52 4.13 two-tb-drive))
@@ -173,6 +190,7 @@
 (def eight-tb-raid-two-z-five-drive-array (DriveArray. "8TB RAID-2Z x5" 5 10.07 16.51 eight-tb-drive))
 (def ten-tb-raid-two-z-five-drive-array (DriveArray. "10TB RAID-2Z x5" 5 12.57 20.61 ten-tb-drive))
 (def twelve-tb-raid-two-z-five-drive-array (DriveArray. "12TB RAID-2Z x5" 5 15.54 24.83 twelve-tb-drive))
+(def fourteen-tb-raid-two-z-five-drive-array (DriveArray. "14TB RAID-2Z x5" 5 17.64 28.93 fourteen-tb-drive))
 (def raid-two-z-five-drive-arrays (list one-tb-raid-two-z-five-drive-array
                                         two-tb-raid-two-z-five-drive-array
                                         three-tb-raid-two-z-five-drive-array
@@ -180,7 +198,8 @@
                                         six-tb-raid-two-z-five-drive-array
                                         eight-tb-raid-two-z-five-drive-array
                                         ten-tb-raid-two-z-five-drive-array
-                                        twelve-tb-raid-two-z-five-drive-array))
+                                        twelve-tb-raid-two-z-five-drive-array
+                                        fourteen-tb-raid-two-z-five-drive-array))
 
 (def one-tb-raid-two-z-six-drive-array (DriveArray. "1TB RAID-2Z x6" 6 1.70 2.79 one-tb-drive))
 (def two-tb-raid-two-z-six-drive-array (DriveArray. "2TB RAID-2Z x6" 6 3.40 5.57 two-tb-drive))
@@ -190,6 +209,7 @@
 (def eight-tb-raid-two-z-six-drive-array (DriveArray. "8TB RAID-2Z x6" 6 13.59 22.29 eight-tb-drive))
 (def ten-tb-raid-two-z-six-drive-array (DriveArray. "10TB RAID-2Z x6" 6 17.03 27.93 ten-tb-drive))
 (def twelve-tb-raid-two-z-six-drive-array (DriveArray. "12TB RAID-2Z x6" 6 20.31 33.31 twelve-tb-drive))
+(def fourteen-tb-raid-two-z-six-drive-array (DriveArray. "14TB RAID-2Z x6" 6 23.75 38.95 fourteen-tb-drive))
 (def raid-two-z-six-drive-arrays (list one-tb-raid-two-z-six-drive-array
                                        two-tb-raid-two-z-six-drive-array
                                        three-tb-raid-two-z-six-drive-array
@@ -197,7 +217,8 @@
                                        six-tb-raid-two-z-six-drive-array
                                        eight-tb-raid-two-z-six-drive-array
                                        ten-tb-raid-two-z-six-drive-array
-                                       twelve-tb-raid-two-z-six-drive-array))
+                                       twelve-tb-raid-two-z-six-drive-array
+                                       fourteen-tb-raid-two-z-six-drive-array))
 
 (def one-tb-raid-two-z-seven-drive-array (DriveArray. "1TB RAID-2Z x7" 7 1.97 3.24 one-tb-drive))
 (def two-tb-raid-two-z-seven-drive-array (DriveArray. "2TB RAID-2Z x7" 7 3.95 6.47 two-tb-drive))
@@ -207,6 +228,7 @@
 (def eight-tb-raid-two-z-seven-drive-array (DriveArray. "8TB RAID-2Z x7" 7 15.78 25.88 eight-tb-drive))
 (def ten-tb-raid-two-z-seven-drive-array (DriveArray. "10TB RAID-2Z x7" 7 19.84 32.54 ten-tb-drive))
 (def twelve-tb-raid-two-z-seven-drive-array (DriveArray. "12TB RAID-2Z x7" 7 23.75 38.95 twelve-tb-drive))
+(def fourteen-tb-raid-two-z-seven-drive-array (DriveArray. "14TB RAID-2Z x7" 7 27.81 45.61 fourteen-tb-drive))
 (def raid-two-z-seven-drive-arrays (list one-tb-raid-two-z-seven-drive-array
                                          two-tb-raid-two-z-seven-drive-array
                                          three-tb-raid-two-z-seven-drive-array
@@ -214,7 +236,8 @@
                                          six-tb-raid-two-z-seven-drive-array
                                          eight-tb-raid-two-z-seven-drive-array
                                          ten-tb-raid-two-z-seven-drive-array
-                                         twelve-tb-raid-two-z-seven-drive-array))
+                                         twelve-tb-raid-two-z-seven-drive-array
+                                         fourteen-tb-raid-two-z-seven-drive-array))
 
 (def one-tb-raid-two-z-eight-drive-array (DriveArray. "1TB RAID-2Z x8" 8 2.42 3.96 one-tb-drive))
 (def two-tb-raid-two-z-eight-drive-array (DriveArray. "2TB RAID-2Z x8" 8 4.83 7.93 two-tb-drive))
@@ -224,6 +247,7 @@
 (def eight-tb-raid-two-z-eight-drive-array (DriveArray. "8TB RAID-2Z x8" 8 19.33 31.71 eight-tb-drive))
 (def ten-tb-raid-two-z-eight-drive-array (DriveArray. "10TB RAID-2Z x8" 8 24.17 39.63 ten-tb-drive))
 (def twelve-tb-raid-two-z-eight-drive-array (DriveArray. "12TB RAID-2Z x8" 8 29.00 47.56 twelve-tb-drive))
+(def fourteen-tb-raid-two-z-eight-drive-array (DriveArray. "14TB RAID-2Z x8" 8 33.67 55.21 fourteen-tb-drive))
 (def raid-two-z-eight-drive-arrays (list one-tb-raid-two-z-eight-drive-array
                                          two-tb-raid-two-z-eight-drive-array
                                          three-tb-raid-two-z-eight-drive-array
@@ -231,7 +255,8 @@
                                          six-tb-raid-two-z-eight-drive-array
                                          eight-tb-raid-two-z-eight-drive-array
                                          ten-tb-raid-two-z-eight-drive-array
-                                         twelve-tb-raid-two-z-eight-drive-array))
+                                         twelve-tb-raid-two-z-eight-drive-array
+                                         fourteen-tb-raid-two-z-eight-drive-array))
 
 (def one-tb-raid-two-z-nine-drive-array (DriveArray. "1TB RAID-2Z x9" 9 2.90 4.76 one-tb-drive))
 (def two-tb-raid-two-z-nine-drive-array (DriveArray. "2TB RAID-2Z x9" 9 5.80 9.52 two-tb-drive))
@@ -241,14 +266,16 @@
 (def eight-tb-raid-two-z-nine-drive-array (DriveArray. "8TB RAID-2Z x9" 9 23.21 38.07 eight-tb-drive))
 (def ten-tb-raid-two-z-nine-drive-array (DriveArray. "10TB RAID-2Z x9" 9 29.11 47.74 ten-tb-drive))
 (def twelve-tb-raid-two-z-nine-drive-array (DriveArray. "12TB RAID-2Z x9" 9 35.00 57.40 twelve-tb-drive))
+(def fourteen-tb-raid-two-z-nine-drive-array (DriveArray. "14TB RAID-2Z x9" 9 40.71 66.77 fourteen-tb-drive))
 (def raid-two-z-nine-drive-arrays (list one-tb-raid-two-z-nine-drive-array
-                                         two-tb-raid-two-z-nine-drive-array
-                                         three-tb-raid-two-z-nine-drive-array
-                                         four-tb-raid-two-z-nine-drive-array
-                                         six-tb-raid-two-z-nine-drive-array
-                                         eight-tb-raid-two-z-nine-drive-array
-                                         ten-tb-raid-two-z-nine-drive-array
-                                         twelve-tb-raid-two-z-nine-drive-array))
+                                        two-tb-raid-two-z-nine-drive-array
+                                        three-tb-raid-two-z-nine-drive-array
+                                        four-tb-raid-two-z-nine-drive-array
+                                        six-tb-raid-two-z-nine-drive-array
+                                        eight-tb-raid-two-z-nine-drive-array
+                                        ten-tb-raid-two-z-nine-drive-array
+                                        twelve-tb-raid-two-z-nine-drive-array
+                                        fourteen-tb-raid-two-z-nine-drive-array))
 
 (def one-tb-raid-two-z-ten-drive-array (DriveArray. "1TB RAID-2Z x10" 10 3.24 5.31 one-tb-drive))
 (def two-tb-raid-two-z-ten-drive-array (DriveArray. "2TB RAID-2Z x10" 10 6.47 10.62 two-tb-drive))
@@ -258,14 +285,16 @@
 (def eight-tb-raid-two-z-ten-drive-array (DriveArray. "8TB RAID-2Z x10" 10 25.89 42.46 eight-tb-drive))
 (def ten-tb-raid-two-z-ten-drive-array (DriveArray. "10TB RAID-2Z x10" 10 32.32 53.01 ten-tb-drive))
 (def twelve-tb-raid-two-z-ten-drive-array (DriveArray. "12TB RAID-2Z x10" 10 38.93 63.84 twelve-tb-drive))
+(def fourteen-tb-raid-two-z-ten-drive-array (DriveArray. "14TB RAID-2Z x10" 10 45.36 74.39 fourteen-tb-drive))
 (def raid-two-z-ten-drive-arrays (list one-tb-raid-two-z-ten-drive-array
-                                        two-tb-raid-two-z-ten-drive-array
-                                        three-tb-raid-two-z-ten-drive-array
-                                        four-tb-raid-two-z-ten-drive-array
-                                        six-tb-raid-two-z-ten-drive-array
-                                        eight-tb-raid-two-z-ten-drive-array
-                                        ten-tb-raid-two-z-ten-drive-array
-                                        twelve-tb-raid-two-z-ten-drive-array))
+                                       two-tb-raid-two-z-ten-drive-array
+                                       three-tb-raid-two-z-ten-drive-array
+                                       four-tb-raid-two-z-ten-drive-array
+                                       six-tb-raid-two-z-ten-drive-array
+                                       eight-tb-raid-two-z-ten-drive-array
+                                       ten-tb-raid-two-z-ten-drive-array
+                                       twelve-tb-raid-two-z-ten-drive-array
+                                       fourteen-tb-raid-two-z-ten-drive-array))
 
 (def one-tb-mirror-drive-array (DriveArray. "1TB MIRROR" 2 0.42 0.70 one-tb-drive))
 (def two-tb-mirror-drive-array (DriveArray. "2TB MIRROR" 2 0.85 2.39 two-tb-drive))
@@ -275,6 +304,7 @@
 (def eight-tb-mirror-drive-array (DriveArray. "8TB MIRROR" 2 3.40 5.57 eight-tb-drive))
 (def ten-tb-mirror-drive-array (DriveArray. "10TB MIRROR" 2 4.25 6.97 ten-tb-drive))
 (def twelve-tb-mirror-drive-array (DriveArray. "12TB MIRROR" 2 5.10 8.36 twelve-tb-drive))
+(def fourteen-tb-mirror-drive-array (DriveArray. "14TB MIRROR" 2 5.92 9.71 fourteen-tb-drive))
 (def mirror-drive-arrays (list one-tb-mirror-drive-array
                                two-tb-mirror-drive-array
                                three-tb-mirror-drive-array
@@ -282,7 +312,8 @@
                                six-tb-mirror-drive-array
                                eight-tb-mirror-drive-array
                                ten-tb-mirror-drive-array
-                               twelve-tb-mirror-drive-array))
+                               twelve-tb-mirror-drive-array
+                               fourteen-tb-mirror-drive-array))
 
 (def all-small-drive-arrays (list raid-one-z-three-drive-arrays
                                   raid-one-z-four-drive-arrays
