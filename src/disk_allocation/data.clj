@@ -116,14 +116,14 @@
 (def eight-tb-drive (Drive. 8 false (with-precision 5 (/ (+ 223.29M 249.99M 250.24M) 3M)))) ; Ave NewEgg price 2018-12-24
 ;(def eight-tb-drive (Drive. 8 false 200.0M))                                                 ; NewEgg flyer ends 2018-12-27
 
-(def ten-tb-drive (Drive. 10 false (with-precision 5 (/ (+ 299.00M 304.27M 330.70M) 3M)))) ; Ave NewEgg price 2018-09-03
-;(def ten-tb-drive (Drive. 10 false 250.00M))                                                ; NewEgg sale ends 2018-12-25
+;(def ten-tb-drive (Drive. 10 false (with-precision 5 (/ (+ 299.00M 304.27M 330.70M) 3M)))) ; Ave NewEgg price 2018-09-03
+(def ten-tb-drive (Drive. 10 false 269.99M))                                                ; NewEgg sale ends 2018-12-25
 
-;(def twelve-tb-drive (Drive. 12 false 398.99M))                                             ; NewEgg price 2018-12-24
-(def twelve-tb-drive (Drive. 12 false 369.99M))                                            ; NewEgg sale ends 2018-12-27
+(def twelve-tb-drive (Drive. 12 false 398.99M))                                             ; NewEgg price 2018-12-24
+;(def twelve-tb-drive (Drive. 12 false 369.99M))                                            ; NewEgg sale ends 2018-12-27
 
-;(def fourteen-tb-drive (Drive. 14 false 525.70M))                                           ; NewEgg price 2018-12-24
-(def fourteen-tb-drive (Drive. 14 false 479.99M))           ; NewEgg sale ends 2019-01-03
+(def fourteen-tb-drive (Drive. 14 false 525.70M))                                           ; NewEgg price 2018-12-24
+;(def fourteen-tb-drive (Drive. 14 false 479.99M))           ; NewEgg sale ends 2019-01-03
 
 (defrecord DriveArray [array-name number-drives tib-50-percent tib-80-percent drive])
 
